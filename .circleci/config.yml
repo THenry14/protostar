@@ -1,0 +1,206 @@
+version: 2.1
+
+
+parameters:
+  poetry_version:
+    type: string
+    default: 1.4.2 # to co Marcin pisał, można zrobić update
+
+  python_version:
+    type: string
+    default: 3.9.14
+
+  # https://circleci.com/docs/using-macos/#supported-xcode-versions-silicon
+  # https://circleci.com/docs/using-macos/#supported-xcode-versions-intel
+  macos_xcode_version:
+    type: string
+    default: 14.2.0
+
+
+executors:
+  linux:
+    docker:
+      - image: python:<< pipeline.parameters.python_version >>
+  mac: # m1 na płatnym?
+    macos:
+      xcode: << pipeline.parameters.macos_xcode_version >>
+
+
+commands:
+  install_python_and_gmp_mac:
+    description: "A command to get specified python and poetry version on mac executor"
+    steps:
+      - restore_cache:
+          keys:
+            - mac-python-gmp-<< pipeline.parameters.python_version >>
+      - run:
+          name: Install python and gmp
+          command: |
+            pyenv install -s << pipeline.parameters.python_version >>
+            pyenv global << pipeline.parameters.python_version >>
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install gmp
+      - save_cache:
+          key: mac-python-gmp-<< pipeline.parameters.python_version >>
+          paths:
+          - ~/.pyenv/versions/<< pipeline.parameters.python_version >>
+          - /opt/homebrew/opt/gmp
+
+  ensure_poetry_version:
+    description: "Ensure poetry version"
+    steps:
+      - run:
+          name: Install required poetry version
+          command: |
+            if ! poetry --version &> /dev/null || [[ $(poetry --version | awk '{print $NF}') != << pipeline.parameters.poetry_version >> ]]; then 
+              echo "Poetry in wrong version, installing"
+              pip install poetry==<< pipeline.parameters.poetry_version >>
+            fi
+
+  install_packages:
+    parameters:
+      platform:
+        type: enum
+        enum: ['linux', 'mac']
+    steps:
+      - run:
+          name: Install packages
+          command: |
+            poetry config installer.modern-installation false
+            if [[ << parameters.platform >> == "mac" ]]; then
+              # https://github.com/python-poetry/poetry/issues/7184
+              CFLAGS=-I/opt/homebrew/opt/gmp/include LDFLAGS=-L/opt/homebrew/opt/gmp/lib poetry --no-ansi install
+            else
+              poetry --no-ansi install
+            fi
+
+  setup:
+    parameters:
+      platform:
+        default: linux
+        type: enum
+        enum: ['linux', 'mac']
+    description: "A command to set up poetry, install deps and cairo bindings"
+    steps:
+      - when:
+          condition:
+            equal: ['mac', << parameters.platform >>]
+          steps:
+            - install_python_and_gmp_mac
+      - ensure_poetry_version
+      - checkout
+      - run: 
+          command: git submodule sync
+      - run: 
+          command: git submodule update --init
+      # - restore_poetry_cache:
+      #     platform: << parameters.platform >>
+      - install_packages:
+          platform: << parameters.platform >>
+      - run:
+          name: Install cairo bindings
+          command: poetry run poe install_cairo_bindings prod
+      # - save_poetry_cache:
+      #     platform: << parameters.platform >>
+
+  restore_poetry_cache:
+    parameters:
+      platform:
+        type: enum
+        enum: ['linux', 'mac']
+    steps:
+      - restore_cache: # dodatkowo jeszcze branch?
+          key: poetry-<< pipeline.parameters.poetry_version >>-py<< pipeline.parameters.python_version >>-<< parameters.platform >>-{{ checksum "poetry.lock" }}
+
+  save_poetry_cache: # czy cache powinno być również per branch?
+    parameters:
+      platform:
+        type: enum
+        enum: ['linux', 'mac']
+    steps:
+      - save_cache:
+          key: poetry-<< pipeline.parameters.poetry_version >>-py<< pipeline.parameters.python_version >>-<< parameters.platform >>-{{ checksum "poetry.lock" }}
+          paths:
+            - ~/.cache/pypoetry
+
+  lint:
+    description: "Type checks, formatting and linting"
+    steps:
+      - run:
+          command: poetry run ./scripts/install_cairo_bindings.sh # cachuj?
+      - run: 
+          command: poetry run poe type_check
+      - run: 
+          command: poetry run poe format_check
+      - run: 
+          command: poetry run poe lint
+
+  unit_tests:
+    description: "Run unit tests"
+    steps:
+      - run:
+          command: poetry run ./scripts/install_cairo_bindings.sh
+      - run:
+          command: git config --global protocol.file.allow always
+      - run:
+          command: poetry run poe test_unit
+
+  # unit_and_integration_tests:
+  #   # resource_class: large
+  #   # parallelism: 4
+
+
+  # e2e_tests:
+
+jobs:
+
+  code_quality:
+    executor: linux
+    steps:
+      - setup
+      - lint
+
+  tests:
+    parameters:
+      platform:
+        type: enum
+        enum: ['linux', 'mac']
+    executor: << parameters.platform >>
+    steps:
+      - setup:
+          platform: << parameters.platform >>
+      - unit_tests
+      # - e2e_tests # rodzaje testów moga iść in parallel?
+
+
+
+workflows:
+  version: 2
+
+  protostar:
+    jobs:
+      - code_quality
+      - tests:
+          matrix:
+            parameters:
+              platform: [linux, mac]
+      # - build_linux: # i verify jako ostatni step jobów buildowych
+      #     requires:
+      #       - checks
+      # - build_mac: # i verify jako ostatni step jobów buildowych
+      #     requires:
+      #       - checks
+      # - publish_approval:
+      #     type: approval
+      #     requires:
+      #       - build_linux
+      #       - build_mac
+      # - publish:
+      #     requires:
+      #       - build_linux
+      #       - build_mac
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+
+# test releases z branchów, tylko gdzie je wrzucać? circleci artifacts?
