@@ -183,7 +183,7 @@ commands:
             PY_VER=$(echo << pipeline.parameters.python_version >> | awk 'BEGIN{FS=OFS="."} NF--')
             chmod +r $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
       - run:
-          command: pytest -n16 --random-order scripts tests/integration
+          command: poetry run poe test_integration
 
 
   # e2e_tests:
