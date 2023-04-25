@@ -21,6 +21,9 @@ executors:
   linux:
     docker:
       - image: python:<< pipeline.parameters.python_version >>
+  # linux:
+  #   machine:
+  #     image: ubuntu-2204:2023.04.2
   mac: # m1 na płatnym?
     macos:
       xcode: << pipeline.parameters.macos_xcode_version >>
@@ -53,7 +56,7 @@ commands:
           command: |
             if ! poetry --version &> /dev/null || [[ $(poetry --version | awk '{print $NF}') != << pipeline.parameters.poetry_version >> ]]; then 
               echo "Poetry in wrong version, installing"
-              pip install poetry==<< pipeline.parameters.poetry_version >>
+              pip3 install poetry==<< pipeline.parameters.poetry_version >>
             fi
 
   install_packages:
@@ -73,6 +76,24 @@ commands:
               poetry --no-ansi install
             fi
 
+  checkout_with_submodules:
+    steps:
+      - checkout
+      - run:
+          name: Checkout code submodules
+          command: |
+            git submodule sync
+            git submodule update --init
+
+  install_rust:
+    steps:
+      - run:
+          name: Install rust
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
+            source "$BASH_ENV"
+
   setup:
     parameters:
       platform:
@@ -87,20 +108,27 @@ commands:
           steps:
             - install_python_and_gmp_mac
       - ensure_poetry_version
-      - checkout
-      - run: 
-          command: git submodule sync
-      - run: 
-          command: git submodule update --init
-      # - restore_poetry_cache:
-      #     platform: << parameters.platform >>
+      - checkout_with_submodules
+      - restore_poetry_cache: # upewnij się że dziala, cos za maly zysk jest
+          platform: << parameters.platform >>
       - install_packages:
           platform: << parameters.platform >>
+      - save_poetry_cache:
+          platform: << parameters.platform >>
+      - install_rust
       - run:
-          name: Install cairo bindings
+          name: debug
+          command: |
+            ls $HOME/.cargo
+            ls $HOME/.cargo/bin
+            echo $PATH
+            source "$HOME/.cargo/env"
+            echo $PATH
+            which rustup
+      - run:
+          name: Install cairo prod bindings
           command: poetry run poe install_cairo_bindings prod
-      # - save_poetry_cache:
-      #     platform: << parameters.platform >>
+
 
   restore_poetry_cache:
     parameters:
@@ -126,27 +154,36 @@ commands:
     description: "Type checks, formatting and linting"
     steps:
       - run:
-          command: poetry run ./scripts/install_cairo_bindings.sh # cachuj?
-      - run: 
+          name: Install cairo dev bindings
+          command: |
+            pip3 install patchelf
+            poetry run ./scripts/install_cairo_bindings.sh # cachuj?
+      - run:
+          name: Run type check
           command: poetry run poe type_check
       - run: 
+          name: Run Format check
           command: poetry run poe format_check
-      - run: 
+      - run:
+          name: Run linter
           command: poetry run poe lint
 
-  unit_tests:
+  run_unit_tests:
     description: "Run unit tests"
     steps:
       - run:
-          command: poetry run ./scripts/install_cairo_bindings.sh
-      - run:
-          command: git config --global protocol.file.allow always
-      - run:
           command: poetry run poe test_unit
 
-  # unit_and_integration_tests:
-  #   # resource_class: large
-  #   # parallelism: 4
+  run_integration_tests:
+    description: "Run integration tests"
+    steps:
+      - run:
+          name: Ensure permissions to sierra-compile
+          command: |
+            PY_VER=$(echo << pipeline.parameters.python_version >> | awk 'BEGIN{FS=OFS="."} NF--')
+            chmod +r $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
+      - run:
+          command: pytest -n16 --random-order scripts tests/integration
 
 
   # e2e_tests:
@@ -159,7 +196,7 @@ jobs:
       - setup
       - lint
 
-  tests:
+  unit_tests:
     parameters:
       platform:
         type: enum
@@ -168,7 +205,12 @@ jobs:
     steps:
       - setup:
           platform: << parameters.platform >>
-      - unit_tests
+      - run:
+          command: poetry run ./scripts/install_cairo_bindings.sh
+      - run:
+          command: git config --global protocol.file.allow always
+      - run_unit_tests
+      - run_integration_tests
       # - e2e_tests # rodzaje testów moga iść in parallel?
 
 
@@ -179,7 +221,7 @@ workflows:
   protostar:
     jobs:
       - code_quality
-      - tests:
+      - unit_tests:
           matrix:
             parameters:
               platform: [linux, mac]
