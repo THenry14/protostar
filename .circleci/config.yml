@@ -117,15 +117,6 @@ commands:
           platform: << parameters.platform >>
       - install_rust
       - run:
-          name: debug
-          command: |
-            ls $HOME/.cargo
-            ls $HOME/.cargo/bin
-            echo $PATH
-            source "$HOME/.cargo/env"
-            echo $PATH
-            which rustup
-      - run:
           name: Install cairo prod bindings
           command: poetry run poe install_cairo_bindings prod
 
@@ -178,12 +169,26 @@ commands:
     description: "Run integration tests"
     steps:
       - run:
-          name: Ensure permissions to sierra-compile
+          name: sierra-compile
           command: |
             PY_VER=$(echo << pipeline.parameters.python_version >> | awk 'BEGIN{FS=OFS="."} NF--')
-            chmod +r $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
-      - run:
-          command: poetry run poe test_integration
+            pushd cairo
+            rustup override set nightly-2022-11-03
+            cargo build --bin cairo-compile
+            popd
+            ls cairo/target/debug/ || echo "nie ma"
+            ls cairo/target/debug/maturin/ || echo "nie ma"
+            file cairo/target/debug/cairo-compile || echo "nie ma"
+            file $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
+            uname -a
+            #chmod +r $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
+      # - run:
+      #     command: |
+      #       TESTS=$(circleci tests glob "tests/integration/**/*.py" | circleci tests split --split-by=timings)
+      #       # auto OR $(getconf _NPROCESSORS_ONLN) does not return physical cpus in docker
+      #       # so the number is inflated and tests fail; hence fixed number of cpus
+      #       poetry run pytest -n4 --random-order scripts $TESTS
+      #       #poetry run pytest -n$(getconf _NPROCESSORS_ONLN) --random-order scripts $TESTS # fail fastuj, jeśli jeden test się sypie to od razu możnaby przerwac wykonanie
 
 
   # e2e_tests:
@@ -202,6 +207,7 @@ jobs:
         type: enum
         enum: ['linux', 'mac']
     executor: << parameters.platform >>
+    #parallelism: 4
     steps:
       - setup:
           platform: << parameters.platform >>
@@ -213,6 +219,22 @@ jobs:
       - run_integration_tests
       # - e2e_tests # rodzaje testów moga iść in parallel?
 
+  # temp_mac_unit_tests:
+  #   # bo nie ma parallelismu dla maków na darmówce
+  #   parameters:
+  #     platform:
+  #       type: enum
+  #       enum: ['mac']
+  #   executor: << parameters.platform >>
+  #   steps:
+  #     - setup:
+  #         platform: << parameters.platform >>
+  #     - run:
+  #         command: poetry run ./scripts/install_cairo_bindings.sh
+  #     - run:
+  #         command: git config --global protocol.file.allow always
+  #     - run_unit_tests
+  #     - run_integration_tests
 
 
 workflows:

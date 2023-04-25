@@ -91,13 +91,13 @@ type_check = "pyright"
 update_cli_docs = "python ./scripts/generate_reference_docs.py"
 
 [tool.poe.tasks.test_e2e]
-shell = "pytest -n 32 tests/e2e"
+shell = "pytest -n 16 tests/e2e"
 
 [tool.poe.tasks.test_integration]
-shell = "pytest -n 32 --random-order scripts tests/integration"
+shell = "pytest -n 16 --random-order scripts tests/integration"
 
 [tool.poe.tasks.test_unit]
-shell = "pytest -n 32 protostar/*"
+shell = "pytest -n 16 protostar/*"
 
 [tool.black]
 target-version = [
