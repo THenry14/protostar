@@ -4,7 +4,7 @@ version: 2.1
 parameters:
   poetry_version:
     type: string
-    default: 1.4.2 # to co Marcin pisał, można zrobić update
+    default: 1.4.2
 
   python_version:
     type: string
@@ -21,17 +21,14 @@ executors:
   linux:
     docker:
       - image: python:<< pipeline.parameters.python_version >>
-  # linux:
-  #   machine:
-  #     image: ubuntu-2204:2023.04.2
-  mac: # m1 na płatnym?
+  mac: # todo: m1 na płatnym?
     macos:
       xcode: << pipeline.parameters.macos_xcode_version >>
 
 
 commands:
   install_python_and_gmp_mac:
-    description: "A command to get specified python and poetry version on mac executor"
+    description: "Install specified python and poetry versions on mac executor"
     steps:
       - restore_cache:
           keys:
@@ -49,7 +46,7 @@ commands:
           - /opt/homebrew/opt/gmp
 
   ensure_poetry_version:
-    description: "Ensure poetry version"
+    description: "Install poetry"
     steps:
       - run:
           name: Install required poetry version
@@ -60,6 +57,7 @@ commands:
             fi
 
   install_packages:
+    description: "Install packages from lock file"
     parameters:
       platform:
         type: enum
@@ -77,6 +75,7 @@ commands:
             fi
 
   checkout_with_submodules:
+    description: "Checkout code with submodules"
     steps:
       - checkout
       - run:
@@ -86,6 +85,7 @@ commands:
             git submodule update --init
 
   install_rust:
+    description: "Install rust"
     steps:
       - run:
           name: Install rust
@@ -95,12 +95,12 @@ commands:
             source "$BASH_ENV"
 
   setup:
+    description: "A command to set up poetry, install deps and cairo bindings"
     parameters:
       platform:
         default: linux
         type: enum
         enum: ['linux', 'mac']
-    description: "A command to set up poetry, install deps and cairo bindings"
     steps:
       - when:
           condition:
@@ -108,14 +108,14 @@ commands:
           steps:
             - install_python_and_gmp_mac
       - ensure_poetry_version
+      - install_rust
       - checkout_with_submodules
-      - restore_poetry_cache: # upewnij się że dziala, cos za maly zysk jest
+      - restore_poetry_cache:
           platform: << parameters.platform >>
       - install_packages:
           platform: << parameters.platform >>
       - save_poetry_cache:
           platform: << parameters.platform >>
-      - install_rust
       - run:
           name: Install cairo prod bindings
           command: poetry run poe install_cairo_bindings prod
@@ -168,11 +168,11 @@ commands:
   lint:
     description: "Type checks, formatting and linting"
     steps:
-      - run:
-          name: Install cairo dev bindings
-          command: |
-            pip3 install patchelf # przenies to do install poetry, albo jak bedzie osobny command install_cairo_bindings
-            poetry run ./scripts/install_cairo_bindings.sh # cachuj?
+      # - run:
+      #     name: Install cairo dev bindings
+      #     command: |
+      #       pip3 install patchelf # przenies to do install poetry, albo jak bedzie osobny command install_cairo_bindings
+      #       poetry run ./scripts/install_cairo_bindings.sh # cachuj?
       - run:
           name: Run type check
           command: poetry run poe type_check
@@ -220,15 +220,16 @@ jobs:
     steps:
       - setup:
           platform: << parameters.platform >>
-      - run:
-          command: |
-            pip3 install patchelf || true
-            poetry run ./scripts/install_cairo_bindings.sh
+      # - run:
+      #     command: |
+      #       pip3 install patchelf || true
+      #       poetry run ./scripts/install_cairo_bindings.sh
       - run:
           command: git config --global protocol.file.allow always
       - run_unit_tests
       - run_integration_tests
       # - e2e_tests # rodzaje testów moga iść in parallel?
+
 
   # temp_mac_unit_tests:
   #   # bo nie ma parallelismu dla maków na darmówce
