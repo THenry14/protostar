@@ -141,6 +141,22 @@ commands:
           paths:
             - ~/.cache/pypoetry
 
+  patch_cairo_compiler:
+    description: "Build and replace cairo_lang cairo compiler"
+    steps:
+      - run:
+          name: Build cairo compiler
+          command: |
+            pushd cairo
+            rustup override set nightly-2022-11-03
+            cargo build --bin cairo-compile
+            popd
+      - run:
+          name: Replace cairo_lang compiler
+          command: |
+            PY_VER=$(echo << pipeline.parameters.python_version >> | awk 'BEGIN{FS=OFS="."} NF--')
+            cp cairo/target/debug/cairo-compile $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
+
   lint:
     description: "Type checks, formatting and linting"
     steps:
@@ -168,28 +184,13 @@ commands:
   run_integration_tests:
     description: "Run integration tests"
     steps:
+      - patch_cairo_compiler
       - run:
-          name: sierra-compile
           command: |
-            PY_VER=$(echo << pipeline.parameters.python_version >> | awk 'BEGIN{FS=OFS="."} NF--')
-            pushd cairo
-            rustup override set nightly-2022-11-03
-            cargo build --bin cairo-compile
-            popd
-            ls cairo/target/debug/ || echo "nie ma"
-            ls cairo/target/debug/maturin/ || echo "nie ma"
-            file cairo/target/debug/cairo-compile || echo "nie ma"
-            file $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
-            uname -a
-            #chmod +r $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
-      # - run:
-      #     command: |
-      #       TESTS=$(circleci tests glob "tests/integration/**/*.py" | circleci tests split --split-by=timings)
-      #       # auto OR $(getconf _NPROCESSORS_ONLN) does not return physical cpus in docker
-      #       # so the number is inflated and tests fail; hence fixed number of cpus
-      #       poetry run pytest -n4 --random-order scripts $TESTS
-      #       #poetry run pytest -n$(getconf _NPROCESSORS_ONLN) --random-order scripts $TESTS # fail fastuj, jeśli jeden test się sypie to od razu możnaby przerwac wykonanie
-
+            TESTS=$(circleci tests glob "tests/integration/**/*.py" | circleci tests split --split-by=timings)
+            # auto OR $(getconf _NPROCESSORS_ONLN) does not return physical cpus in docker
+            # so the number is inflated and tests fail; hence fixed number of cpus
+            poetry run pytest -n4 --random-order scripts $TESTS # fail fastuj, jeśli jeden test się sypie to od razu możnaby przerwac wykonanie
 
   # e2e_tests:
 
