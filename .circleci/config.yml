@@ -32,15 +32,16 @@ commands:
     steps:
       - restore_cache:
           keys:
-            - mac-python-gmp-<< pipeline.parameters.python_version >>
+            - mac-python-gmp-<< pipeline.parameters.python_version >>-debugmariusz
       - run:
           name: Install python and gmp
           command: |
-            pyenv install -s << pipeline.parameters.python_version >>
+            env PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s << pipeline.parameters.python_version >>
+            #pyenv install -s $(echo << pipeline.parameters.python_version >> | awk 'BEGIN{FS=OFS="."} NF--')-dev
             pyenv global << pipeline.parameters.python_version >>
             HOMEBREW_NO_AUTO_UPDATE=1 brew install gmp
       - save_cache:
-          key: mac-python-gmp-<< pipeline.parameters.python_version >>
+          key: mac-python-gmp-<< pipeline.parameters.python_version >>-debugmariusz
           paths:
           - ~/.pyenv/versions/<< pipeline.parameters.python_version >>
           - /opt/homebrew/opt/gmp
@@ -94,6 +95,39 @@ commands:
             echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
             source "$BASH_ENV"
 
+  cairo_bindings_and_compiler:
+    description: "Install cairo bindings"
+    parameters:
+      platform:
+        default: linux
+        type: enum
+        enum: ['linux', 'mac']
+    steps:
+      - run:
+          name: Get submodule hash
+          command: git rev-parse HEAD:./cairo > /tmp/cairo-submodule-hash
+      - restore_cache:
+          key: bindings-<< parameters.platform >>-{{ checksum "scripts/install_cairo_bindings.sh" }}-{{ checksum "/tmp/cairo-submodule-hash" }}-debugmariusz
+      - run:
+          name: Install bindings and compile cairo-compile
+          command: |
+            if [ -f ./cairo/target/debug/cairo-compile ] && [ -d ./cairo/target/wheels ]; then
+              pip install $(find ./cairo/target/wheels -maxdepth 1 -type f -iname "cairo_python_bindings*")
+            else
+              poetry run poe install_cairo_bindings prod
+              poetry run poe install_cairo_bindings # debug
+              pushd cairo
+              rustup override set nightly-2022-11-03
+              cargo build --bin cairo-compile
+              popd
+            fi
+      - save_cache:
+          key: bindings-<< parameters.platform >>-{{ checksum "scripts/install_cairo_bindings.sh" }}-{{ checksum "/tmp/cairo-submodule-hash" }}-debugmariusz
+          paths:
+            - ./cairo/target/debug/cairo-compile
+            - ./cairo/target/wheels
+      - patch_cairo_compiler
+
   setup:
     description: "A command to set up poetry, install deps and cairo bindings"
     parameters:
@@ -114,12 +148,24 @@ commands:
           platform: << parameters.platform >>
       - install_packages:
           platform: << parameters.platform >>
+      - cairo_bindings_and_compiler:
+          platform: << parameters.platform >>
       - save_poetry_cache:
           platform: << parameters.platform >>
-      - run:
-          name: Install cairo prod bindings
-          command: poetry run poe install_cairo_bindings prod
-
+      # - run:
+      #     command: |
+      #       echo "DEBUG"
+      #       pip freeze
+      #       echo "poetry show"
+      #       poetry show
+      # - run:
+      #     command: poetry run poe install_cairo_bindings prod # debug
+      # - run:
+      #     command: |
+      #       echo "DEBUG"
+      #       pip freeze
+      #       echo "poetry show"
+      #       poetry show
 
   restore_poetry_cache:
     parameters:
@@ -127,10 +173,10 @@ commands:
         type: enum
         enum: ['linux', 'mac']
     steps:
-      - restore_cache: # dodatkowo jeszcze branch?
+      - restore_cache:
           key: poetry-<< pipeline.parameters.poetry_version >>-py<< pipeline.parameters.python_version >>-<< parameters.platform >>-{{ checksum "poetry.lock" }}
 
-  save_poetry_cache: # czy cache powinno być również per branch?
+  save_poetry_cache:
     parameters:
       platform:
         type: enum
@@ -142,15 +188,8 @@ commands:
             - ~/.cache/pypoetry
 
   patch_cairo_compiler:
-    description: "Build and replace cairo_lang cairo compiler"
+    description: "Replace cairo_lang cairo compiler"
     steps:
-      - run:
-          name: Build cairo compiler
-          command: |
-            pushd cairo
-            rustup override set nightly-2022-11-03
-            cargo build --bin cairo-compile
-            popd
       - run:
           name: Replace cairo_lang compiler
           command: |
@@ -161,11 +200,6 @@ commands:
   lint:
     description: "Type checks, formatting and linting"
     steps:
-      # - run:
-      #     name: Install cairo dev bindings
-      #     command: |
-      #       pip3 install patchelf # przenies to do install poetry, albo jak bedzie osobny command install_cairo_bindings
-      #       poetry run ./scripts/install_cairo_bindings.sh # cachuj?
       - run:
           name: Run type check
           command: poetry run poe type_check
@@ -185,7 +219,6 @@ commands:
   run_integration_tests:
     description: "Run integration tests"
     steps:
-      - patch_cairo_compiler
       - run:
           command: |
             TESTS=$(circleci tests glob "tests/integration/**/*.py" | circleci tests split --split-by=timings)
@@ -196,7 +229,6 @@ commands:
   run_e2e_tests:
     description: "Run unit tests"
     steps:
-      - patch_cairo_compiler
       - run:
           command: poetry run poe build
       - run:
@@ -220,10 +252,6 @@ jobs:
     steps:
       - setup:
           platform: << parameters.platform >>
-      # - run:
-      #     command: |
-      #       pip3 install patchelf || true
-      #       poetry run ./scripts/install_cairo_bindings.sh
       - run:
           command: git config --global protocol.file.allow always
       - run_unit_tests
@@ -242,24 +270,6 @@ jobs:
       - run:
           command: git config --global protocol.file.allow always
       - run_e2e_tests
-
-  # temp_mac_unit_tests:
-  #   # bo nie ma parallelismu dla maków na darmówce
-  #   parameters:
-  #     platform:
-  #       type: enum
-  #       enum: ['mac']
-  #   executor: << parameters.platform >>
-  #   steps:
-  #     - setup:
-  #         platform: << parameters.platform >>
-  #     - run:
-  #         command: poetry run ./scripts/install_cairo_bindings.sh
-  #     - run:
-  #         command: git config --global protocol.file.allow always
-  #     - run_unit_tests
-  #     - run_integration_tests
-
 
 workflows:
   version: 2
