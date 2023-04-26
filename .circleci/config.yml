@@ -155,7 +155,15 @@ commands:
           name: Replace cairo_lang compiler
           command: |
             PY_VER=$(echo << pipeline.parameters.python_version >> | awk 'BEGIN{FS=OFS="."} NF--')
+            ls $(poetry env info -p)
+            poetry env info -p
+            poetry env use 3.9
+            poetry env info -p
+            file $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
             cp cairo/target/debug/cairo-compile $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
+            chmod +x $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
+            file $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
+            $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile || echo "nie dziala"
 
   lint:
     description: "Type checks, formatting and linting"
@@ -163,7 +171,7 @@ commands:
       - run:
           name: Install cairo dev bindings
           command: |
-            pip3 install patchelf
+            pip3 install patchelf # przenies to do install poetry, albo jak bedzie osobny command install_cairo_bindings
             poetry run ./scripts/install_cairo_bindings.sh # cachuj?
       - run:
           name: Run type check
@@ -213,7 +221,9 @@ jobs:
       - setup:
           platform: << parameters.platform >>
       - run:
-          command: poetry run ./scripts/install_cairo_bindings.sh
+          command: |
+            pip3 install patchelf || true
+            poetry run ./scripts/install_cairo_bindings.sh
       - run:
           command: git config --global protocol.file.allow always
       - run_unit_tests
