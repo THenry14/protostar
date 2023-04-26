@@ -155,15 +155,8 @@ commands:
           name: Replace cairo_lang compiler
           command: |
             PY_VER=$(echo << pipeline.parameters.python_version >> | awk 'BEGIN{FS=OFS="."} NF--')
-            ls $(poetry env info -p)
-            poetry env info -p
-            poetry env use 3.9
-            poetry env info -p
-            file $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
             cp cairo/target/debug/cairo-compile $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
             chmod +x $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
-            file $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
-            $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile || echo "nie dziala"
 
   lint:
     description: "Type checks, formatting and linting"
@@ -187,7 +180,7 @@ commands:
     description: "Run unit tests"
     steps:
       - run:
-          command: poetry run poe test_unit
+          command: poetry run pytest -n4 protostar/*
 
   run_integration_tests:
     description: "Run integration tests"
@@ -200,7 +193,14 @@ commands:
             # so the number is inflated and tests fail; hence fixed number of cpus
             poetry run pytest -n4 --random-order scripts $TESTS # fail fastuj, jeśli jeden test się sypie to od razu możnaby przerwac wykonanie
 
-  # e2e_tests:
+  run_e2e_tests:
+    description: "Run unit tests"
+    steps:
+      - patch_cairo_compiler
+      - run:
+          command: poetry run poe build
+      - run:
+          command: poetry run pytest -n4 tests/e2e
 
 jobs:
 
@@ -228,8 +228,20 @@ jobs:
           command: git config --global protocol.file.allow always
       - run_unit_tests
       - run_integration_tests
-      # - e2e_tests # rodzaje testów moga iść in parallel?
 
+  e2e_tests:
+    parameters:
+      platform:
+        type: enum
+        enum: ['linux', 'mac']
+    executor: << parameters.platform >>
+    #parallelism: 4
+    steps:
+      - setup:
+          platform: << parameters.platform >>
+      - run:
+          command: git config --global protocol.file.allow always
+      - run_e2e_tests
 
   # temp_mac_unit_tests:
   #   # bo nie ma parallelismu dla maków na darmówce
@@ -256,6 +268,10 @@ workflows:
     jobs:
       - code_quality
       - unit_tests:
+          matrix:
+            parameters:
+              platform: [linux, mac]
+      - e2e_tests:
           matrix:
             parameters:
               platform: [linux, mac]
