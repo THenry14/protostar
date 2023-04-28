@@ -16,6 +16,10 @@ parameters:
     type: string
     default: 14.2.0
 
+  scarb_version:
+    type: string
+    default: 0.1.0
+
 
 executors:
   linux:
@@ -92,6 +96,26 @@ commands:
             echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
             source "$BASH_ENV"
 
+  install_scarb:
+    description: "Install scarb"
+    parameters:
+      platform:
+        type: enum
+        enum: ['linux', 'mac']
+    steps:
+      - run:
+          name: Install scarb
+          command: |
+            if [[ << parameters.platform >> == 'mac' ]]; then
+              SYSTEM_NAME="apple-darwin"
+            else
+              SYSTEM_NAME="unknown-linux-gnu"
+            fi
+            mkdir scarb
+            curl -L https://github.com/software-mansion/scarb/releases/download/v<< pipeline.parameters.scarb_version >>/scarb-v<< pipeline.parameters.scarb_version >>-x86_64-$SYSTEM_NAME.tar.gz | tar -xvzC scarb --strip-components=1
+            echo 'export PATH="$(pwd)/scarb/bin:$PATH"' >> "$BASH_ENV"
+            source "$BASH_ENV"
+
   cairo_bindings_and_compiler:
     description: "Install cairo bindings"
     parameters:
@@ -125,8 +149,18 @@ commands:
             - ./cairo/target/wheels
       - patch_cairo_compiler
 
+  patch_cairo_compiler:
+    description: "Replace cairo_lang cairo compiler"
+    steps:
+      - run:
+          name: Replace cairo_lang compiler
+          command: |
+            PY_VER=$(echo << pipeline.parameters.python_version >> | awk 'BEGIN{FS=OFS="."} NF--')
+            cp cairo/target/debug/cairo-compile $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
+            chmod +x $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
+
   setup:
-    description: "A command to set up poetry, install deps and cairo bindings"
+    description: "Set up poetry, install deps and cairo bindings"
     parameters:
       platform:
         default: linux
@@ -171,16 +205,6 @@ commands:
             - ~/.cache/pypoetry
             - ~/Library/Caches/pypoetry
 
-  patch_cairo_compiler:
-    description: "Replace cairo_lang cairo compiler"
-    steps:
-      - run:
-          name: Replace cairo_lang compiler
-          command: |
-            PY_VER=$(echo << pipeline.parameters.python_version >> | awk 'BEGIN{FS=OFS="."} NF--')
-            cp cairo/target/debug/cairo-compile $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
-            chmod +x $(poetry env info -p)/lib/python$PY_VER/site-packages/starkware/starknet/compiler/v1/bin/starknet-sierra-compile
-
   lint:
     description: "Type checks, formatting and linting"
     steps:
@@ -212,9 +236,14 @@ commands:
 
   run_e2e_tests:
     description: "Run unit tests"
+    parameters:
+      platform:
+        type: enum
+        enum: ['linux', 'mac']
     steps:
-      - run:
-          command: poetry run poe build
+      - build
+      - install_scarb:
+          platform: << parameters.platform >>
       - run:
           command: poetry run pytest -n4 tests/e2e
 
@@ -258,7 +287,8 @@ jobs:
           platform: << parameters.platform >>
       - run:
           command: git config --global protocol.file.allow always
-      - run_e2e_tests
+      - run_e2e_tests:
+          platform: << parameters.platform >>
 
 workflows:
   version: 2
