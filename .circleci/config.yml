@@ -221,6 +221,11 @@ commands:
       - run:
           command: poetry run pytest -n4 tests/e2e
 
+  build:
+    steps:
+      - run:
+          command: poetry run poe build
+
 jobs:
 
   code_quality:
