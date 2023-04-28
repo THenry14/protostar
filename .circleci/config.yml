@@ -37,7 +37,6 @@ commands:
           name: Install python and gmp
           command: |
             env PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s << pipeline.parameters.python_version >>
-            #pyenv install -s $(echo << pipeline.parameters.python_version >> | awk 'BEGIN{FS=OFS="."} NF--')-dev
             pyenv global << pipeline.parameters.python_version >>
             HOMEBREW_NO_AUTO_UPDATE=1 brew install gmp
       - save_cache:
@@ -53,7 +52,6 @@ commands:
           name: Install required poetry version
           command: |
             if ! poetry --version &> /dev/null || [[ $(poetry --version | awk '{print $NF}') != << pipeline.parameters.poetry_version >> ]]; then 
-              echo "Poetry in wrong version, installing"
               pip3 install poetry==<< pipeline.parameters.poetry_version >>
             fi
 
@@ -69,7 +67,6 @@ commands:
           command: |
             poetry config installer.modern-installation false
             if [[ << parameters.platform >> == "mac" ]]; then
-              # https://github.com/python-poetry/poetry/issues/7184
               CFLAGS=-I/opt/homebrew/opt/gmp/include LDFLAGS=-L/opt/homebrew/opt/gmp/lib poetry --no-ansi install
             else
               poetry --no-ansi install
