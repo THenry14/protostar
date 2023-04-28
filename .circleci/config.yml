@@ -32,7 +32,7 @@ commands:
     steps:
       - restore_cache:
           keys:
-            - mac-python-gmp-<< pipeline.parameters.python_version >>-debugmariusz
+            - mac-python-gmp-<< pipeline.parameters.python_version >>-cachetest3
       - run:
           name: Install python and gmp
           command: |
@@ -41,7 +41,7 @@ commands:
             pyenv global << pipeline.parameters.python_version >>
             HOMEBREW_NO_AUTO_UPDATE=1 brew install gmp
       - save_cache:
-          key: mac-python-gmp-<< pipeline.parameters.python_version >>-debugmariusz
+          key: mac-python-gmp-<< pipeline.parameters.python_version >>-cachetest3
           paths:
           - ~/.pyenv/versions/<< pipeline.parameters.python_version >>
           - /opt/homebrew/opt/gmp
@@ -107,22 +107,22 @@ commands:
           name: Get submodule hash
           command: git rev-parse HEAD:./cairo > /tmp/cairo-submodule-hash
       - restore_cache:
-          key: bindings-<< parameters.platform >>-{{ checksum "scripts/install_cairo_bindings.sh" }}-{{ checksum "/tmp/cairo-submodule-hash" }}-debugmariusz
+          key: bindings-<< parameters.platform >>-{{ checksum "scripts/install_cairo_bindings.sh" }}-{{ checksum "/tmp/cairo-submodule-hash" }}-cachetest3
       - run:
           name: Install bindings and compile cairo-compile
           command: |
-            # if [ -f ./cairo/target/debug/cairo-compile ] && [ -d ./cairo/target/wheels ]; then
-            #   pip install $(find ./cairo/target/wheels -maxdepth 1 -type f -iname "cairo_python_bindings*")
-            # else
-            poetry run poe install_cairo_bindings prod
-            poetry run poe install_cairo_bindings # debug
-            pushd cairo
-            rustup override set nightly-2022-11-03
-            cargo build --bin cairo-compile
-            popd
-            # fi
+            if [ -f ./cairo/target/debug/cairo-compile ] && [ -d ./cairo/target/wheels ]; then
+              pip install $(find ./cairo/target/wheels -maxdepth 1 -type f -iname "cairo_python_bindings*")
+            else
+              poetry run poe install_cairo_bindings prod
+              poetry run poe install_cairo_bindings
+              pushd cairo
+              rustup override set nightly-2022-11-03
+              cargo build --bin cairo-compile
+              popd
+            fi
       - save_cache:
-          key: bindings-<< parameters.platform >>-{{ checksum "scripts/install_cairo_bindings.sh" }}-{{ checksum "/tmp/cairo-submodule-hash" }}-debugmariusz
+          key: bindings-<< parameters.platform >>-{{ checksum "scripts/install_cairo_bindings.sh" }}-{{ checksum "/tmp/cairo-submodule-hash" }}-cachetest3
           paths:
             - ./cairo/target/debug/cairo-compile
             - ./cairo/target/wheels
@@ -152,20 +152,6 @@ commands:
           platform: << parameters.platform >>
       - save_poetry_cache:
           platform: << parameters.platform >>
-      # - run:
-      #     command: |
-      #       echo "DEBUG"
-      #       pip freeze
-      #       echo "poetry show"
-      #       poetry show
-      # - run:
-      #     command: poetry run poe install_cairo_bindings prod # debug
-      # - run:
-      #     command: |
-      #       echo "DEBUG"
-      #       pip freeze
-      #       echo "poetry show"
-      #       poetry show
 
   restore_poetry_cache:
     parameters:
@@ -174,7 +160,7 @@ commands:
         enum: ['linux', 'mac']
     steps:
       - restore_cache:
-          key: poetry-<< pipeline.parameters.poetry_version >>-py<< pipeline.parameters.python_version >>-<< parameters.platform >>-{{ checksum "poetry.lock" }}
+          key: poetry-<< pipeline.parameters.poetry_version >>-py<< pipeline.parameters.python_version >>-<< parameters.platform >>-{{ checksum "poetry.lock" }}-cachetest3
 
   save_poetry_cache:
     parameters:
@@ -183,9 +169,10 @@ commands:
         enum: ['linux', 'mac']
     steps:
       - save_cache:
-          key: poetry-<< pipeline.parameters.poetry_version >>-py<< pipeline.parameters.python_version >>-<< parameters.platform >>-{{ checksum "poetry.lock" }}
+          key: poetry-<< pipeline.parameters.poetry_version >>-py<< pipeline.parameters.python_version >>-<< parameters.platform >>-{{ checksum "poetry.lock" }}-cachetest3
           paths:
             - ~/.cache/pypoetry
+            - ~/Library/Caches/pypoetry
 
   patch_cairo_compiler:
     description: "Replace cairo_lang cairo compiler"
