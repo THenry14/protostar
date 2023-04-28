@@ -234,7 +234,7 @@ commands:
             # so the number is inflated and tests fail; hence fixed number of cpus
             poetry run pytest -n4 --random-order scripts $TESTS # fail fastuj, jeśli jeden test się sypie to od razu możnaby przerwac wykonanie
 
-  run_e2e_tests:
+  run_e2e_tests: # rename?
     description: "Run unit tests"
     parameters:
       platform:
@@ -246,6 +246,12 @@ commands:
           platform: << parameters.platform >>
       - run:
           command: poetry run pytest -n4 tests/e2e
+      - run:
+          name: Pack
+          command: tar -czvf protostar.tar.gz ./dist/protostar
+      - store_artifacts:
+          path: protostar.tar.gz
+          destination: protostar-<< parameters.platform >>.tar.gz # dostosuj nazwę do releasów githubowych
 
   build:
     steps:
