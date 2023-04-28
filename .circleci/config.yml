@@ -111,16 +111,16 @@ commands:
       - run:
           name: Install bindings and compile cairo-compile
           command: |
-            if [ -f ./cairo/target/debug/cairo-compile ] && [ -d ./cairo/target/wheels ]; then
-              pip install $(find ./cairo/target/wheels -maxdepth 1 -type f -iname "cairo_python_bindings*")
-            else
-              poetry run poe install_cairo_bindings prod
-              poetry run poe install_cairo_bindings # debug
-              pushd cairo
-              rustup override set nightly-2022-11-03
-              cargo build --bin cairo-compile
-              popd
-            fi
+            # if [ -f ./cairo/target/debug/cairo-compile ] && [ -d ./cairo/target/wheels ]; then
+            #   pip install $(find ./cairo/target/wheels -maxdepth 1 -type f -iname "cairo_python_bindings*")
+            # else
+            poetry run poe install_cairo_bindings prod
+            poetry run poe install_cairo_bindings # debug
+            pushd cairo
+            rustup override set nightly-2022-11-03
+            cargo build --bin cairo-compile
+            popd
+            # fi
       - save_cache:
           key: bindings-<< parameters.platform >>-{{ checksum "scripts/install_cairo_bindings.sh" }}-{{ checksum "/tmp/cairo-submodule-hash" }}-debugmariusz
           paths:
