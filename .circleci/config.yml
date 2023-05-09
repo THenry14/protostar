@@ -312,21 +312,15 @@ jobs:
             echo 'export PATH="$(pwd)/dist/protostar:$PATH"' >> "$BASH_ENV"
             source "$BASH_ENV"
             protostar --help
-      - persist_to_workspace:
-          paths:
-            - protostar-<< parameters.platform >>.tar.gz
+      - store_artifacts:
+          path: protostar-<< parameters.platform >>.tar.gz
+          destination: protostar-<< parameters.platform >>.tar.gz
 
-  save_test_release:
+  send_test_release:
     executor: linux
     steps:
-      - attach_workspace:
-          at: ./
-      - store_artifacts:
-          path: protostar-linux.tar.gz
-          destination: protostar-Linux.tar.gz
-      - store_artifacts:
-          path: protostar-mac.tar.gz
-          destination: protostar-macOS.tar.gz
+      - run:
+          command: echo "ELO1"
 
   release:
     executor: linux
@@ -348,15 +342,15 @@ workflows:
           matrix:
             parameters:
               platform: [linux, mac]
-      - save_test_release_approval:
+      - send_test_release_approval:
           type: approval
           requires:
             - code_quality
             - unit_tests
             - e2e_tests
-      - save_test_release:
+      - send_test_release:
           requires:
-            - save_test_release_approval
+            - send_test_release_approval
           filters:
             branches:
               ignore:
