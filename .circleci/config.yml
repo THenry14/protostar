@@ -376,7 +376,8 @@ workflows:
                 - master
       - save_test_release:
           requires:
-            - verify_install_test
+            - verify_install_test-mac
+            - verify_install_test-linux
           filters:
             branches:
               ignore:
@@ -400,7 +401,8 @@ workflows:
                 - master
       - release:
           requires:
-            - verify_install_release
+            - verify_install_release-mac
+            - verify_install_release-linux
           filters:
             branches:
               only:
