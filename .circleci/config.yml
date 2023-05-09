@@ -285,6 +285,7 @@ jobs:
       - setup:
           platform: << parameters.platform >>
       - run:
+          name: Set git config
           command: git config --global protocol.file.allow always
       - run_unit_tests
       - run_integration_tests
@@ -300,30 +301,20 @@ jobs:
       - setup:
           platform: << parameters.platform >>
       - run:
+          name: Set git config
           command: git config --global protocol.file.allow always
       - run_e2e_tests:
           platform: << parameters.platform >>
-      - persist_to_workspace:
-          paths:
-            - protostar-<< parameters.platform >>.tar.gz
-
-  verify_install:
-    description: "Verify installation by adding protostar to path and running --help"
-    parameters:
-      platform:
-        type: enum
-        enum: ['linux', 'mac']
-    executor: << parameters.platform >>
-    steps:
-      - attach_workspace:
-          at: ./
       - run:
-          name: Verify installation
+          name: Verify install
           command: |
             tar -xzvf protostar--<< parameters.platform >>.tar.gz
             echo 'export PATH="$(pwd)/dist/protostar:$PATH"' >> "$BASH_ENV"
             source "$BASH_ENV"
             protostar --help
+      - persist_to_workspace:
+          paths:
+            - protostar-<< parameters.platform >>.tar.gz
 
   save_test_release:
     executor: linux
@@ -363,28 +354,9 @@ workflows:
             - code_quality
             - unit_tests
             - e2e_tests
-      - verify_install: # nie wiem czy to tak powinno być, dziedziczenie workspaców
-          platform: linux
-          name: verify_install_test-linux
-          requires:
-            - save_test_release_approval
-          filters:
-            branches:
-              ignore:
-                - master
-      - verify_install: # nie wiem czy to tak powinno być, dziedziczenie workspaców
-          platform: mac
-          name: verify_install_test-mac
-          requires:
-            - save_test_release_approval
-          filters:
-            branches:
-              ignore:
-                - master
       - save_test_release:
           requires:
-            - verify_install_test-mac
-            - verify_install_test-linux
+            - save_test_release_approval
           filters:
             branches:
               ignore:
@@ -395,28 +367,9 @@ workflows:
             - code_quality
             - unit_tests
             - e2e_tests
-      - verify_install:
-          platform: linux
-          name: verify_install_release-linux
-          requires:
-            - release_approval
-          filters:
-            branches:
-              ignore:
-                - master
-      - verify_install:
-          platform: mac
-          name: verify_install_release-mac
-          requires:
-            - release_approval
-          filters:
-            branches:
-              ignore:
-                - master
       - release:
           requires:
-            - verify_install_release-mac
-            - verify_install_release-linux
+            - release_approval
           filters:
             branches:
               only:
