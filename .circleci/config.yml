@@ -315,15 +315,15 @@ jobs:
       - run:
           name: Prepare workspace
           command: |
-            mkdir -p /tmp/workspace/<< parameters.platform >>
+            mkdir -p /tmp/workspace
             if [[ << parameters.platform >> == 'mac' ]]; then
               SYSTEM_NAME="macOS"
             else
               SYSTEM_NAME="Linux"
             fi
-            mv protostar-<< parameters.platform >>.tar.gz /tmp/workspace/<< parameters.platform >>/protostar-$SYSTEM_NAME.tar.gz
+            mv protostar-<< parameters.platform >>.tar.gz /tmp/workspace/protostar-$SYSTEM_NAME.tar.gz
       - persist_to_workspace:
-          root: /tmp/workspace/<< parameters.platform >>
+          root: /tmp/workspace
           paths:
             - protostar*
 
@@ -331,9 +331,7 @@ jobs:
     executor: linux
     steps:
       - attach_workspace:
-          at: /tmp/workspace/linux
-      - attach_workspace:
-          at: /tmp/workspace/mac
+          at: /tmp/workspace
       - store_artifacts:
           path: /tmp/workspace
           destination: protostar
