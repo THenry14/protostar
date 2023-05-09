@@ -308,7 +308,7 @@ jobs:
       - run:
           name: Verify install
           command: |
-            tar -xzvf protostar--<< parameters.platform >>.tar.gz
+            tar -xzvf protostar-<< parameters.platform >>.tar.gz
             echo 'export PATH="$(pwd)/dist/protostar:$PATH"' >> "$BASH_ENV"
             source "$BASH_ENV"
             protostar --help
@@ -348,6 +348,10 @@ workflows:
             - code_quality
             - unit_tests
             - e2e_tests
+          filters:
+            branches:
+              ignore:
+                - master
       - send_test_release:
           requires:
             - send_test_release_approval
@@ -361,6 +365,10 @@ workflows:
             - code_quality
             - unit_tests
             - e2e_tests
+          filters:
+            branches:
+              only:
+                - master
       - release:
           requires:
             - release_approval
