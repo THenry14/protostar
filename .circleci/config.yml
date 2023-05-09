@@ -364,10 +364,17 @@ workflows:
             - unit_tests
             - e2e_tests
       - verify_install: # nie wiem czy to tak powinno być, dziedziczenie workspaców
-          matrix:
-            parameters:
-              platform: [linux, mac]
-          name: verify_install_test
+          platform: linux
+          name: verify_install_test-linux
+          requires:
+            - save_test_release_approval
+          filters:
+            branches:
+              ignore:
+                - master
+      - verify_install: # nie wiem czy to tak powinno być, dziedziczenie workspaców
+          platform: mac
+          name: verify_install_test-mac
           requires:
             - save_test_release_approval
           filters:
@@ -389,10 +396,17 @@ workflows:
             - unit_tests
             - e2e_tests
       - verify_install:
-          matrix:
-            parameters:
-              platform: [linux, mac]
-          name: verify_install_release
+          platform: linux
+          name: verify_install_release-linux
+          requires:
+            - release_approval
+          filters:
+            branches:
+              ignore:
+                - master
+      - verify_install:
+          platform: mac
+          name: verify_install_release-mac
           requires:
             - release_approval
           filters:
