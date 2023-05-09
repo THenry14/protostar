@@ -312,15 +312,31 @@ jobs:
             echo 'export PATH="$(pwd)/dist/protostar:$PATH"' >> "$BASH_ENV"
             source "$BASH_ENV"
             protostar --help
-      - store_artifacts:
-          path: protostar-<< parameters.platform >>.tar.gz
-          destination: protostar-<< parameters.platform >>.tar.gz
+      - run:
+          name: Prepare workspace
+          command: |
+            mkdir -p /tmp/workspace/<< parameters.platform >>
+            if [[ << parameters.platform >> == 'mac' ]]; then
+              SYSTEM_NAME="macOS"
+            else
+              SYSTEM_NAME="Linux"
+            fi
+            mv protostar-<< parameters.platform >>.tar.gz /tmp/workspace/<< parameters.platform >>/protostar-$SYSTEM_NAME.tar.gz
+      - persist_to_workspace:
+          root: /tmp/workspace/<< parameters.platform >>
+          paths:
+            - protostar*
 
   send_test_release:
     executor: linux
     steps:
-      - run:
-          command: echo "ELO1"
+      - attach_workspace:
+          at: /tmp/workspace/linux
+      - attach_workspace:
+          at: /tmp/workspace/mac
+      - store_artifacts:
+          path: /tmp/workspace
+          destination: protostar
 
   release:
     executor: linux
