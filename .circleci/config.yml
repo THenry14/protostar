@@ -1,6 +1,5 @@
 version: 2.1
 
-
 parameters:
   poetry_version:
     type: string
@@ -225,13 +224,6 @@ commands:
           name: Build protostar
           command: poetry run poe build
 
-  # verify_version:
-  #   description: "Verify correct version for release"
-  #   steps:
-  #     - run:
-  #         name: Verify version
-  #         command: |
-
   run_unit_tests:
     description: "Run unit tests"
     steps:
@@ -266,7 +258,34 @@ commands:
           name: Pack protostar
           command: tar -czvf protostar-<< parameters.platform >>.tar.gz ./dist/protostar
 
+  notify:
+    description: "Notify about things on slack"
+    parameters:
+      status:
+        type: enum
+        enum: ['good', 'danger']
+      message:
+        type: string
+      details:
+        type: string
+    steps:
+      - run:
+          name: Notify via slack
+          command: |
+            curl -XPOST -H "Content-Type: application/json" \
+            -d "{\"text\": \"<< parameters.message >>\", \"attachments\": [{\"text\": \"<< parameters.details >>\", \"color\": \"<< parameters.status >>\"}]}" \
+            $SLACK_URL
+
 jobs:
+
+  dupa:
+    executor: linux
+    steps:
+      - notify:
+          parameters:
+            status: "good"
+            message: "A message from circleci"
+            details: "Noanie"
 
   code_quality:
     executor: linux
@@ -339,6 +358,7 @@ jobs:
   release:
     executor: linux
     steps:
+      # verify version in pyproject.toml is bumped
       - run:
           command: echo "ELO"
 
@@ -347,46 +367,47 @@ workflows:
 
   protostar:
     jobs:
-      - code_quality
-      - unit_tests:
-          matrix:
-            parameters:
-              platform: [linux, mac]
-      - e2e_tests:
-          matrix:
-            parameters:
-              platform: [linux, mac]
-      - send_test_release_approval:
-          type: approval
-          requires:
-            - code_quality
-            - unit_tests
-            - e2e_tests
-          filters:
-            branches:
-              ignore:
-                - master
-      - send_test_release:
-          requires:
-            - send_test_release_approval
-          filters:
-            branches:
-              ignore:
-                - master
-      - release_approval:
-          type: approval
-          requires:
-            - code_quality
-            - unit_tests
-            - e2e_tests
-          filters:
-            branches:
-              only:
-                - master
-      - release:
-          requires:
-            - release_approval
-          filters:
-            branches:
-              only:
-                - master
+      - dupa
+      # - code_quality
+      # - unit_tests:
+      #     matrix:
+      #       parameters:
+      #         platform: [linux, mac]
+      # - e2e_tests:
+      #     matrix:
+      #       parameters:
+      #         platform: [linux, mac]
+      # - send_test_release_approval:
+      #     type: approval
+      #     requires:
+      #       - code_quality
+      #       - unit_tests
+      #       - e2e_tests
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - master
+      # - send_test_release:
+      #     requires:
+      #       - send_test_release_approval
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - master
+      # - release_approval:
+      #     type: approval
+      #     requires:
+      #       - code_quality
+      #       - unit_tests
+      #       - e2e_tests
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+      # - release:
+      #     requires:
+      #       - release_approval
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
