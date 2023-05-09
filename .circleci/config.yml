@@ -218,6 +218,20 @@ commands:
           name: Run linter
           command: poetry run poe lint
 
+  build:
+    description: "Build protostar"
+    steps:
+      - run:
+          name: Build protostar
+          command: poetry run poe build
+
+  # verify_version:
+  #   description: "Verify correct version for release"
+  #   steps:
+  #     - run:
+  #         name: Verify version
+  #         command: |
+
   run_unit_tests:
     description: "Run unit tests"
     steps:
@@ -228,13 +242,14 @@ commands:
     description: "Run integration tests"
     steps:
       - run:
+          name: Run integration tests
           command: |
             TESTS=$(circleci tests glob "tests/integration/**/*.py" | circleci tests split --split-by=timings)
             # auto OR $(getconf _NPROCESSORS_ONLN) does not return physical cpus in docker
             # so the number is inflated and tests fail; hence fixed number of cpus
-            poetry run pytest -n4 --random-order scripts $TESTS # fail fastuj, jeśli jeden test się sypie to od razu możnaby przerwac wykonanie
+            poetry run pytest -n4 --random-order scripts $TESTS
 
-  run_e2e_tests: # rename?
+  run_e2e_tests:
     description: "Run unit tests"
     parameters:
       platform:
@@ -245,18 +260,11 @@ commands:
       - install_scarb:
           platform: << parameters.platform >>
       - run:
+          name: Run e2e tests
           command: poetry run pytest -n4 tests/e2e
       - run:
-          name: Pack
-          command: tar -czvf protostar.tar.gz ./dist/protostar
-      - store_artifacts:
-          path: protostar.tar.gz
-          destination: protostar-<< parameters.platform >>.tar.gz # dostosuj nazwę do releasów githubowych
-
-  build:
-    steps:
-      - run:
-          command: poetry run poe build
+          name: Pack protostar
+          command: tar -czvf protostar-<< parameters.platform >>.tar.gz ./dist/protostar
 
 jobs:
 
@@ -295,6 +303,45 @@ jobs:
           command: git config --global protocol.file.allow always
       - run_e2e_tests:
           platform: << parameters.platform >>
+      - persist_to_workspace:
+          paths:
+            - protostar-<< parameters.platform >>.tar.gz
+
+  verify_install:
+    description: "Verify installation by adding protostar to path and running --help"
+    parameters:
+      platform:
+        type: enum
+        enum: ['linux', 'mac']
+    executor: << parameters.platform >>
+    steps:
+      - attach_workspace:
+          at: ./
+      - run:
+          name: Verify installation
+          command: |
+            tar -xzvf protostar--<< parameters.platform >>.tar.gz
+            echo 'export PATH="$(pwd)/dist/protostar:$PATH"' >> "$BASH_ENV"
+            source "$BASH_ENV"
+            protostar --help
+
+  save_test_release:
+    executor: linux
+    steps:
+      - attach_workspace:
+          at: ./
+      - store_artifacts:
+          path: protostar-linux.tar.gz
+          destination: protostar-Linux.tar.gz
+      - store_artifacts:
+          path: protostar-mac.tar.gz
+          destination: protostar-macOS.tar.gz
+
+  release:
+    executor: linux
+    steps:
+      - run:
+          command: echo "ELO"
 
 workflows:
   version: 2
@@ -310,24 +357,51 @@ workflows:
           matrix:
             parameters:
               platform: [linux, mac]
-      # - build_linux: # i verify jako ostatni step jobów buildowych
-      #     requires:
-      #       - checks
-      # - build_mac: # i verify jako ostatni step jobów buildowych
-      #     requires:
-      #       - checks
-      # - publish_approval:
-      #     type: approval
-      #     requires:
-      #       - build_linux
-      #       - build_mac
-      # - publish:
-      #     requires:
-      #       - build_linux
-      #       - build_mac
-      #     filters:
-      #       branches:
-      #         only:
-      #           - master
-
-# test releases z branchów, tylko gdzie je wrzucać? circleci artifacts?
+      - save_test_release_approval:
+          type: approval
+          requires:
+            - code_quality
+            - unit_tests
+            - e2e_tests
+      - verify_install: # nie wiem czy to tak powinno być, dziedziczenie workspaców
+          matrix:
+            parameters:
+              platform: [linux, mac]
+          name: verify_install_test
+          requires:
+            - save_test_release_approval
+          filters:
+            branches:
+              ignore:
+                - master
+      - save_test_release:
+          requires:
+            - verify_install_test
+          filters:
+            branches:
+              ignore:
+                - master
+      - release_approval:
+          type: approval
+          requires:
+            - code_quality
+            - unit_tests
+            - e2e_tests
+      - verify_install:
+          matrix:
+            parameters:
+              platform: [linux, mac]
+          name: verify_install_release
+          requires:
+            - release_approval
+          filters:
+            branches:
+              ignore:
+                - master
+      - release:
+          requires:
+            - verify_install_release
+          filters:
+            branches:
+              only:
+                - master
