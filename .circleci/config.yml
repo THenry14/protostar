@@ -258,40 +258,34 @@ commands:
           name: Pack protostar
           command: tar -czvf protostar-<< parameters.platform >>.tar.gz ./dist/protostar
 
-  notify:
-    description: "Notify about things on slack"
+  notify_about_failed_test:
+    description: "Send slack notification about failed test on master"
     parameters:
-      status:
-        type: enum
-        enum: ['good', 'danger']
       message:
         type: string
       details:
         type: string
     steps:
-      - run:
-          name: Notify via slack
-          command: |
-            curl -XPOST -H "Content-Type: application/json" \
-            -d "{\"text\": \"<< parameters.message >>\", \"attachments\": [{\"text\": \"<< parameters.details >>\", \"color\": \"<< parameters.status >>\"}]}" \
-            $SLACK_URL
+      - when:
+          condition:
+            equal: [ master, << pipeline.git.branch >> ]
+          steps:
+            - run:
+                name: Notify about failed test
+                command: |
+                  ./scripts/notify.sh "danger" "<< parameters.message >>" "<< parameters.details >>" "$SLACK_URL"
+                when: on_fail
 
 jobs:
-
-  dupa:
-    executor: linux
-    steps:
-      - notify:
-          parameters:
-            status: "good"
-            message: "A message from circleci"
-            details: "Noanie"
 
   code_quality:
     executor: linux
     steps:
       - setup
       - lint
+      - notify_about_failed_test:
+          message: "*Code quality checks failed* :rotating_light:"
+          details: "*Committed by:*\n$CIRCLE_USERNAME\n\n*Url to failed test:*\n$CIRCLE_BUILD_URL"
 
   unit_tests:
     parameters:
@@ -354,6 +348,13 @@ jobs:
       - store_artifacts:
           path: /tmp/workspace
           destination: protostar
+      - run:
+          name: Notify about ready test releases
+          command: | # wklej tutaj pełne komendy jak ściągnąć te releasy?
+            links=$(curl -H "Circle-Token: $CIRCLE_TOKEN" \
+            https://circleci.com/api/v1.1/project/github/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/$CIRCLE_BUILD_NUM/artifacts | \
+            grep "circle-artifacts" | awk -F '"' '{print $4})
+            ./scripts/notify.sh "warning" "*New test release has just been published* :sunglasses:" "*Requestor:*\n$CIRCLE_USERNAME\n\n*Download links:*\n$links" "$SLACK_URL"
 
   release:
     executor: linux
@@ -367,8 +368,7 @@ workflows:
 
   protostar:
     jobs:
-      - dupa
-      # - code_quality
+      - code_quality
       # - unit_tests:
       #     matrix:
       #       parameters:
