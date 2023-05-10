@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  gh: circleci/github-cli@2.2.0
+
 parameters:
   poetry_version:
     type: string
@@ -352,27 +355,81 @@ jobs:
       - store_artifacts:
           path: /tmp/workspace
           destination: protostar
+      - checkout
       - run:
           name: Notify about ready test releases
           command: |
             links=$(curl -H "Circle-Token: $CIRCLE_TOKEN" \
             https://circleci.com/api/v1.1/project/github/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/$CIRCLE_BUILD_NUM/artifacts | \
-            grep "circle-artifacts" | awk -F '"' '{print $4})
+            grep "circle-artifacts" | awk -F '"' '{print $4}')
             ./scripts/notify.sh "warning" \
             "*New test release has just been published* :sunglasses:" \
-            "*Requestor:*\n$CIRCLE_USERNAME\n\n*How to download:\ncurl -L -H "Circle-Token: $CIRCLE_TOKEN" <link to artifact> -o protostar.tar.gz\n*Download links:*\n$links" "$SLACK_URL"
+            "*Requestor:*\n$CIRCLE_USERNAME\n\n*Download links:*\n$links" "$SLACK_URL"
 
-  release:
+  verify_valid_version:
     executor: linux
     steps:
-      # verify version in pyproject.toml is bumped
+      - checkout
+      - attach_workspace:
+          at: /tmp/workspace
       - run:
-          command: echo "ELO"
+          name: Verify versions
+          command: |
+            tar -xzvf /tmp/workspace/protostar-Linux.tar.gz dist/protostar/info/constants.json
+            built_version=$(grep dist/protostar/info/constants.json -e "PROTOSTAR_VERSION\":" | awk '{print $2}' | tr -d ',')
+            released_request=$(curl -s --fail https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/releases/latest)
+            if [ $? != 0 ]; then
+              echo "Checking last released version failed"
+              exit 1
+            fi
+            released_version=$(echo "$released_request" | grep "tag_name" | awk '{print $2}' | tr -d 'v,')
+            if [ "$built_version" != "$released_version" ]; then
+              echo "VERSION=v$built_version" | tr -d "\"" > /tmp/version
+              ./scripts/notify.sh "good" \
+              "*New release is ready to be published* :protostar:" \
+              "*Version to be released:*\n$built_version\n\n*Link to workflow:*\nhttps://app.circleci.com/pipelines/workflows/$CIRCLE_WORKFLOW_ID" "$SLACK_URL"
+            else
+              echo "Version $built_version already released, nothing to do"
+              curl -X POST "https://circleci.com/api/v2/workflow/$CIRCLE_WORKFLOW_ID/cancel?circle-token=$CIRCLE_TOKEN"
+            fi
+      - persist_to_workspace:
+          root: .
+          paths: release-version
+
+  release:
+    parameters:
+      version:
+        type: string
+      prerelease:
+        type: boolean
+    executor: linux
+    steps:
+      - checkout
+      - attach_workspace:
+          at: /tmp/workspace
+      - gh/release:
+          tag: << parameters.version >>
+          title: << parameters.version >>
+          prerelease: << parameters.prerelease >>
+      - run:
+          name: Notify about release
+          command: |
+            if [ << parameters.version >> = "false" ]; then
+              type="release"
+            else
+              type="pre-release"
+            fi
+            ./scripts/notify.sh "good" \
+            "*New $type has just been published* :tada:" \
+            "*Version:*\n<< parameters.version >>" "$SLACK_URL"
+
 
 workflows:
   version: 2
 
   protostar:
+    variables:
+      version: ""
     jobs:
       - code_quality
       - unit_tests:
@@ -400,8 +457,7 @@ workflows:
             branches:
               ignore:
                 - master
-      - release_approval:
-          type: approval
+      - verify_valid_version:
           requires:
             - code_quality
             - unit_tests
@@ -410,9 +466,42 @@ workflows:
             branches:
               only:
                 - master
+          on_success:
+            - set_workflow_variable:
+                name: version
+                value: << pipeline.workspace.release-version.VERSION >>
+      - release_approval:
+          type: approval
+          requires:
+            - verify_valid_version
+          filters:
+            branches:
+              only:
+                - master
+      - prerelease_approval:
+          type: approval
+          requires:
+            - verify_valid_version
+          filters:
+            branches:
+              only:
+                - master
       - release:
+          name: make_release
+          version: << pipeline.variables.version >>
+          prerelease: false
           requires:
             - release_approval
+          filters:
+            branches:
+              only:
+                - master
+      - prerelease:
+          name: make_prerelease
+          version: << pipeline.variables.version >>
+          prerelease: true
+          requires:
+            - prerelease_approval
           filters:
             branches:
               only:
