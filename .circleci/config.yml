@@ -263,8 +263,6 @@ commands:
     parameters:
       message:
         type: string
-      details:
-        type: string
     steps:
       - when:
           condition:
@@ -273,7 +271,10 @@ commands:
             - run:
                 name: Notify about failed test
                 command: |
-                  ./scripts/notify.sh "danger" "<< parameters.message >>" "<< parameters.details >>" "$SLACK_URL"
+                  ./scripts/notify.sh "danger" \
+                  "<< parameters.message >>" \
+                  "*Committed by:*\n$CIRCLE_USERNAME\n\n*Url to failed test:*\n$CIRCLE_BUILD_URL" \
+                  "$SLACK_URL"
                 when: on_fail
 
 jobs:
@@ -284,8 +285,7 @@ jobs:
       - setup
       - lint
       - notify_about_failed_test:
-          message: "*Code quality checks failed* :rotating_light:"
-          details: "*Committed by:*\n$CIRCLE_USERNAME\n\n*Url to failed test:*\n$CIRCLE_BUILD_URL"
+          message: "*Code quality checks have failed* :rotating_light:"
 
   unit_tests:
     parameters:
@@ -302,6 +302,8 @@ jobs:
           command: git config --global protocol.file.allow always
       - run_unit_tests
       - run_integration_tests
+      - notify_about_failed_test:
+          message: "*Unit tests have failed* :rotating_light:"
 
   e2e_tests:
     parameters:
@@ -339,6 +341,8 @@ jobs:
           root: /tmp/workspace
           paths:
             - protostar*
+      - notify_about_failed_test:
+          message: "*End to end tests have failed* :rotating_light:"
 
   send_test_release:
     executor: linux
@@ -350,11 +354,13 @@ jobs:
           destination: protostar
       - run:
           name: Notify about ready test releases
-          command: | # wklej tutaj pełne komendy jak ściągnąć te releasy?
+          command: |
             links=$(curl -H "Circle-Token: $CIRCLE_TOKEN" \
             https://circleci.com/api/v1.1/project/github/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/$CIRCLE_BUILD_NUM/artifacts | \
             grep "circle-artifacts" | awk -F '"' '{print $4})
-            ./scripts/notify.sh "warning" "*New test release has just been published* :sunglasses:" "*Requestor:*\n$CIRCLE_USERNAME\n\n*Download links:*\n$links" "$SLACK_URL"
+            ./scripts/notify.sh "warning" \
+            "*New test release has just been published* :sunglasses:" \
+            "*Requestor:*\n$CIRCLE_USERNAME\n\n*How to download:\ncurl -L -H "Circle-Token: $CIRCLE_TOKEN" <link to artifact> -o protostar.tar.gz\n*Download links:*\n$links" "$SLACK_URL"
 
   release:
     executor: linux
@@ -369,45 +375,45 @@ workflows:
   protostar:
     jobs:
       - code_quality
-      # - unit_tests:
-      #     matrix:
-      #       parameters:
-      #         platform: [linux, mac]
-      # - e2e_tests:
-      #     matrix:
-      #       parameters:
-      #         platform: [linux, mac]
-      # - send_test_release_approval:
-      #     type: approval
-      #     requires:
-      #       - code_quality
-      #       - unit_tests
-      #       - e2e_tests
-      #     filters:
-      #       branches:
-      #         ignore:
-      #           - master
-      # - send_test_release:
-      #     requires:
-      #       - send_test_release_approval
-      #     filters:
-      #       branches:
-      #         ignore:
-      #           - master
-      # - release_approval:
-      #     type: approval
-      #     requires:
-      #       - code_quality
-      #       - unit_tests
-      #       - e2e_tests
-      #     filters:
-      #       branches:
-      #         only:
-      #           - master
-      # - release:
-      #     requires:
-      #       - release_approval
-      #     filters:
-      #       branches:
-      #         only:
-      #           - master
+      - unit_tests:
+          matrix:
+            parameters:
+              platform: [linux, mac]
+      - e2e_tests:
+          matrix:
+            parameters:
+              platform: [linux, mac]
+      - send_test_release_approval:
+          type: approval
+          requires:
+            - code_quality
+            - unit_tests
+            - e2e_tests
+          filters:
+            branches:
+              ignore:
+                - master
+      - send_test_release:
+          requires:
+            - send_test_release_approval
+          filters:
+            branches:
+              ignore:
+                - master
+      - release_approval:
+          type: approval
+          requires:
+            - code_quality
+            - unit_tests
+            - e2e_tests
+          filters:
+            branches:
+              only:
+                - master
+      - release:
+          requires:
+            - release_approval
+          filters:
+            branches:
+              only:
+                - master
