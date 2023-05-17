@@ -407,19 +407,11 @@ jobs:
             fi
             if [ << parameters.prerelease >> = true ]; then
               type="--prerelease"
+              name="prerelease"
             fi
             gh release create "$VERSION" /tmp/workspace/*.tar.gz --title "$VERSION" --repo "$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME" $type
-      - run:
-          name: Notify about release
-          command: |
-            if [ << parameters.prerelease >> = true ]; then
-              type="pre-release"
-            else
-              type="release"
-            fi
-            source /tmp/workspace/version
             ./scripts/notify.sh "good" \
-            "*New $type has just been published* :tada:" \
+            "*New ${type:-"release"} has just been published* :tada:" \
             "*Version:*\n$VERSION\n\n*Approver:*\n$CIRCLE_USERNAME" "$SLACK_URL"
 
   build_docs:

@@ -18,7 +18,7 @@ for i in {1..10}; do
   # Check for approval in commit checks
   if grep -q "ci/circleci: $CIRCLE_PROJECT_REPONAME/$APPROVAL_NAME" "checks.txt"; then
     # Get check url
-    URL=$(jq -r --arg name "$APPROVAL_NAME" -c 'map(select(.context | contains($name))) | .[].target_url' < status.json | head -1)
+    URL=$(jq -r --arg name "$CIRCLE_PROJECT_REPONAME/$APPROVAL_NAME" -c 'map(select(.context | contains($name))) | .[].target_url' < status.json | head -1)
 
     curl --request POST \
       --url "https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/statuses/$CIRCLE_SHA1" \
@@ -29,7 +29,7 @@ for i in {1..10}; do
         "state": "success",
         "target_url": "'"$URL"'",
         "description": "Approval marked as successful in gh, to trigger visit CircleCI",
-        "context": "ci/circleci: '"$APPROVAL_NAME"'"
+        "context": "ci/circleci: '"$CIRCLE_PROJECT_REPONAME/$APPROVAL_NAME"'"
       }'
 
     exit 0
