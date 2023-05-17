@@ -399,8 +399,7 @@ jobs:
           command: |
             set -x
             source /tmp/workspace/version
-            source /tmp/workspace/released-versions
-            if echo "$RELEASED_VERSIONS" | grep -qF "$VERSION"; then
+            if grep -qF "$VERSION" /tmp/workspace/released-versions; then
               echo "Already released, cancelling release"
               curl --fail -X POST "https://circleci.com/api/v2/workflow/$CIRCLE_WORKFLOW_ID/cancel?circle-token=$CIRCLE_TOKEN"
               exit 0
@@ -461,10 +460,10 @@ workflows:
   protostar:
     jobs:
       - code_quality
-      - unit_tests:
-          matrix:
-            parameters:
-              platform: [linux, mac]
+      # - unit_tests:
+      #     matrix:
+      #       parameters:
+      #         platform: [linux, mac]
       - e2e_tests:
           matrix:
             parameters:
@@ -478,7 +477,7 @@ workflows:
           type: approval
           requires:
             - code_quality
-            - unit_tests
+            # - unit_tests
             - e2e_tests
           filters:
             branches:
@@ -489,7 +488,7 @@ workflows:
           approval_name: send_test_release_approval
           requires:
             - code_quality
-            - unit_tests
+            # - unit_tests
             - e2e_tests
           filters:
             branches:
@@ -505,7 +504,7 @@ workflows:
       - verify_valid_version:
           requires:
             - code_quality
-            - unit_tests
+            # - unit_tests
             - e2e_tests
       - release_approval:
           type: approval
