@@ -121,10 +121,10 @@ commands:
           name: Get submodule and protostar-rust hashes
           command: |
             git rev-parse HEAD:./cairo > /tmp/cairo-submodule-hash
-            sha1sum scripts/install_all_bindings.sh > /tmp/scripts-hash
-            sha1sum scripts/install_cairo_bindings.sh >> /tmp/scripts-hash
-            sha1sum scripts/install_protostar_rust_bindings.sh >> /tmp/scripts-hash
-            find protostar-rust -type f -exec sha1sum {} \; | sort -k 2 > /tmp/protostar-rust-hashes
+            shasum scripts/install_all_bindings.sh > /tmp/scripts-hash
+            shasum scripts/install_cairo_bindings.sh >> /tmp/scripts-hash
+            shasum scripts/install_protostar_rust_bindings.sh >> /tmp/scripts-hash
+            find protostar-rust -type f -exec shasum {} \; | sort -k 2 > /tmp/protostar-rust-hashes
 
   cairo_bindings_and_compiler:
     description: "Install cairo bindings"
