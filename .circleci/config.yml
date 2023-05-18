@@ -483,7 +483,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - e2e_tests:
           name: e2e_tests-linux
           platform: linux
@@ -493,7 +493,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - build:
           matrix:
             parameters:
@@ -502,7 +502,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - send_test_release_approval:
           type: approval
           requires:
@@ -513,7 +513,7 @@ workflows:
           filters:
             branches:
               ignore:
-                - master
+                - szymczyk/citest
       - patch_approval_check:
           name: patch_test_release_approval_status
           approval_name: send_test_release_approval
@@ -525,14 +525,14 @@ workflows:
           filters:
             branches:
               ignore:
-                - master
+                - szymczyk/citest
       - send_test_release:
           requires:
             - send_test_release_approval
           filters:
             branches:
               ignore:
-                - master
+                - szymczyk/citest
       - verify_valid_version:
           name: verify_valid_version_branch
           requires:
@@ -543,7 +543,7 @@ workflows:
           filters:
             branches:
               ignore:
-                master
+                - szymczyk/citest
       - verify_valid_version:
           name: verify_valid_version_master
           requires:
@@ -556,7 +556,7 @@ workflows:
           filters:
             branches:
               only:
-                master
+                - szymczyk/citest
       - release_approval:
           type: approval
           requires:
@@ -564,7 +564,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - patch_approval_check:
           name: patch_release_approval_status
           approval_name: release_approval
@@ -573,7 +573,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - prerelease_approval:
           type: approval
           requires:
@@ -581,7 +581,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - prerelease_from_branch_approval:
           type: approval
           requires:
@@ -589,7 +589,7 @@ workflows:
           filters:
             branches:
               ignore:
-                - master
+                - szymczyk/citest
       - patch_approval_check:
           name: patch_prerelease_branch_approval_status
           approval_name: prerelease_from_branch_approval
@@ -608,7 +608,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - release:
           name: make_prerelease
           prerelease: true
