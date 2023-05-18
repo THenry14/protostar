@@ -261,14 +261,14 @@ commands:
             poetry run pytest -n4 tests/e2e
 
   notify_about_failed_test:
-    description: "Send slack notification about failed test on szymczyk/citest"
+    description: "Send slack notification about failed test on master"
     parameters:
       message:
         type: string
     steps:
       - when:
           condition:
-            equal: [szymczyk/citest, << pipeline.git.branch >>]
+            equal: [master, << pipeline.git.branch >>]
           steps:
             - run:
                 name: Notify about failed test
@@ -386,7 +386,7 @@ jobs:
             if echo "$released_versions" | grep -qF "$built_version"; then
               echo "Version $VERSION already released"
             else
-              if [ "$CIRCLE_BRANCH" = "szymczyk/citest" ]; then
+              if [ "$CIRCLE_BRANCH" = "master" ]; then
                 ./scripts/notify.sh "good" \
                 "*New release is ready to be published* :protostar:" \
                 "*Version to be released:*\n$VERSION\n\n*Link to workflow:*\nhttps://app.circleci.com/pipelines/workflows/$CIRCLE_WORKFLOW_ID" "$SLACK_URL"
@@ -483,7 +483,7 @@ workflows:
           filters:
             branches:
               only:
-                - szymczyk/citest
+                - master
       - e2e_tests:
           name: e2e_tests-linux
           platform: linux
@@ -493,7 +493,7 @@ workflows:
           filters:
             branches:
               only:
-                - szymczyk/citest
+                - master
       - build:
           matrix:
             parameters:
@@ -502,7 +502,7 @@ workflows:
           filters:
             branches:
               only:
-                - szymczyk/citest
+                - master
       - send_test_release_approval:
           type: approval
           requires:
@@ -513,7 +513,7 @@ workflows:
           filters:
             branches:
               ignore:
-                - szymczyk/citest
+                - master
       - patch_approval_check:
           name: patch_test_release_approval_status
           approval_name: send_test_release_approval
@@ -525,50 +525,81 @@ workflows:
           filters:
             branches:
               ignore:
-                - szymczyk/citest
+                - master
       - send_test_release:
           requires:
             - send_test_release_approval
           filters:
             branches:
               ignore:
-                - szymczyk/citest
+                - master
       - verify_valid_version:
+          name: verify_valid_version_branch
           requires:
             - code_quality
             - unit_tests-linux
             - e2e_tests-linux
             - build
-      - release_approval:
-          type: approval
+          filters:
+            branches:
+              ignore:
+                master
+      - verify_valid_version:
+          name: verify_valid_version_master
           requires:
-            - verify_valid_version
+            - code_quality
+            - unit_tests-linux
+            - e2e_tests-linux
             - unit_tests-mac
             - e2e_tests-mac
+            - build
           filters:
             branches:
               only:
-                - szymczyk/citest
+                master
+      - release_approval:
+          type: approval
+          requires:
+            - verify_valid_version_master
+          filters:
+            branches:
+              only:
+                - master
       - patch_approval_check:
           name: patch_release_approval_status
           approval_name: release_approval
           requires:
-            - verify_valid_version
-            - unit_tests-mac
-            - e2e_tests-mac
+            - verify_valid_version_master
           filters:
             branches:
               only:
-                - szymczyk/citest
+                - master
       - prerelease_approval:
           type: approval
           requires:
-            - verify_valid_version
+            - verify_valid_version_master
+          filters:
+            branches:
+              only:
+                - master
+      - prerelease_from_branch_approval:
+          type: approval
+          requires:
+            - verify_valid_version_branch
+          filters:
+            branches:
+              ignore:
+                - master
       - patch_approval_check:
-          name: patch_prerelease_approval_status
+          name: patch_prerelease_branch_approval_status
+          approval_name: prerelease_from_branch_approval
+          requires:
+            - verify_valid_version_branch
+      - patch_approval_check:
+          name: patch_prerelease_master_approval_status
           approval_name: prerelease_approval
           requires:
-            - verify_valid_version
+            - verify_valid_version_master
       - release:
           name: make_release
           prerelease: false
@@ -577,9 +608,14 @@ workflows:
           filters:
             branches:
               only:
-                - szymczyk/citest
+                - master
       - release:
           name: make_prerelease
           prerelease: true
           requires:
             - prerelease_approval
+      - release:
+          name: make_prerelease_from_branch
+          prerelease: true
+          requires:
+            - prerelease_from_branch_approval
