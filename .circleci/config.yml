@@ -261,14 +261,14 @@ commands:
             poetry run pytest -n4 tests/e2e
 
   notify_about_failed_test:
-    description: "Send slack notification about failed test on master"
+    description: "Send slack notification about failed test on szymczyk/citest"
     parameters:
       message:
         type: string
     steps:
       - when:
           condition:
-            equal: [master, << pipeline.git.branch >>]
+            equal: [szymczyk/citest, << pipeline.git.branch >>]
           steps:
             - run:
                 name: Notify about failed test
@@ -386,7 +386,7 @@ jobs:
             if echo "$released_versions" | grep -qF "$built_version"; then
               echo "Version $VERSION already released"
             else
-              if [ "$CIRCLE_BRANCH" = "master" ]; then
+              if [ "$CIRCLE_BRANCH" = "szymczyk/citest" ]; then
                 ./scripts/notify.sh "good" \
                 "*New release is ready to be published* :protostar:" \
                 "*Version to be released:*\n$VERSION\n\n*Link to workflow:*\nhttps://app.circleci.com/pipelines/workflows/$CIRCLE_WORKFLOW_ID" "$SLACK_URL"
@@ -483,7 +483,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - e2e_tests:
           name: e2e_tests-linux
           platform: linux
@@ -493,7 +493,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - build:
           matrix:
             parameters:
@@ -502,7 +502,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - send_test_release_approval:
           type: approval
           requires:
@@ -513,7 +513,7 @@ workflows:
           filters:
             branches:
               ignore:
-                - master
+                - szymczyk/citest
       - patch_approval_check:
           name: patch_test_release_approval_status
           approval_name: send_test_release_approval
@@ -525,14 +525,14 @@ workflows:
           filters:
             branches:
               ignore:
-                - master
+                - szymczyk/citest
       - send_test_release:
           requires:
             - send_test_release_approval
           filters:
             branches:
               ignore:
-                - master
+                - szymczyk/citest
       - verify_valid_version:
           requires:
             - code_quality
@@ -548,7 +548,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - patch_approval_check:
           name: patch_release_approval_status
           approval_name: release_approval
@@ -559,7 +559,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - prerelease_approval:
           type: approval
           requires:
@@ -577,7 +577,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - szymczyk/citest
       - release:
           name: make_prerelease
           prerelease: true
