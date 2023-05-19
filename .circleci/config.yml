@@ -283,7 +283,7 @@ commands:
             - run:
                 name: Notify about failed test
                 command: |
-                  ./scripts/notify.sh "danger" \
+                  echo ./scripts/notify.sh "danger" \
                   "<< parameters.message >>" \
                   "*Committed by:*\n$CIRCLE_USERNAME\n\n*Url to failed test:*\n$CIRCLE_BUILD_URL" \
                   "$SLACK_URL"
@@ -331,6 +331,12 @@ jobs:
       - notify_about_failed_test:
           message: "*End to end tests have failed* :rotating_light:"
 
+  pre_cache_mac_bindings_and_compiler:
+    executor: mac
+    steps:
+      - setup:
+          platform: mac
+
   build:
     parameters:
       platform:
@@ -373,7 +379,7 @@ jobs:
             links=$(curl -H "Circle-Token: $CIRCLE_TOKEN" \
             https://circleci.com/api/v1.1/project/github/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/$CIRCLE_BUILD_NUM/artifacts | \
             grep "circle-artifacts" | awk -F '"' '{print $4}')
-            ./scripts/notify.sh "warning" \
+            echo ./scripts/notify.sh "warning" \
             "*New test release has just been published* :sunglasses:" \
             "*Requestor:*\n$CIRCLE_USERNAME\n\n*Download links:*\n$links" "$SLACK_URL"
 
@@ -381,23 +387,20 @@ jobs:
     executor: linux
     steps:
       - checkout
-      - attach_workspace:
-          at: /tmp/workspace
       - run:
           name: Verify versions
           command: |
-            tar -xzvf /tmp/workspace/protostar-Linux.tar.gz ./dist/protostar/info/constants.json
-            built_version=$(grep dist/protostar/info/constants.json -e "PROTOSTAR_VERSION\":" | awk '{print $2}' | tr -d ',')
+            build_version=$(grep pyproject.toml -e "^version =" | awk '{print $3}')
             released_versions=$(curl -s --fail https://api.github.com/repos/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/releases | grep "tag_name" | awk '{print $2}' | tr -d 'v,')
             mkdir -p /tmp/version
-            echo "export VERSION=v$built_version" | tr -d '"' > /tmp/version/version
+            echo "export VERSION=v$build_version" | tr -d '"' > /tmp/version/version
             echo "export RELEASED_VERSIONS=v$released_versions" | tr -d '"' > /tmp/version/released-versions
             source /tmp/version/version
-            if echo "$released_versions" | grep -qF "$built_version"; then
+            if echo "$released_versions" | grep -qF "$build_version"; then
               echo "Version $VERSION already released"
             else
               if [ "$CIRCLE_BRANCH" = "master" ]; then
-                ./scripts/notify.sh "good" \
+                echo ./scripts/notify.sh "good" \
                 "*New release is ready to be published* :protostar:" \
                 "*Version to be released:*\n$VERSION\n\n*Link to workflow:*\nhttps://app.circleci.com/pipelines/workflows/$CIRCLE_WORKFLOW_ID" "$SLACK_URL"
               fi
@@ -432,7 +435,7 @@ jobs:
               name="prerelease"
             fi
             gh release create "$VERSION" /tmp/workspace/*.tar.gz --title "$VERSION" --repo "$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME" $type
-            ./scripts/notify.sh "good" \
+            echo ./scripts/notify.sh "good" \
             "*New ${name:-"release"} has just been published* :tada:" \
             "*Version:*\n$VERSION\n\n*Approver:*\n$CIRCLE_USERNAME" "$SLACK_URL"
 
@@ -460,7 +463,8 @@ jobs:
           command: tar -czvf protostar-docs.tar.gz website/build
       - persist_to_workspace:
           root: .
-          paths: protostar-docs.tar.gz
+          paths: 
+            - protostar-docs.tar.gz
 
   patch_approval_check:
     parameters:
@@ -483,46 +487,54 @@ workflows:
   protostar:
     jobs:
       - code_quality
+      - pre_cache_mac_bindings_and_compiler:
+          filters:
+            branches:
+              only:
+                szymczyk/ci-cost
       - unit_tests:
           name: unit_tests-linux
           platform: linux
+          requires:
+            - code_quality
       - unit_tests:
           name: unit_tests-mac
           platform: mac
+          requires:
+            - pre_cache_mac_bindings_and_compiler
           filters:
             branches:
               only:
-                - master
+                szymczyk/ci-cost
       - e2e_tests:
           name: e2e_tests-linux
           platform: linux
+          requires:
+            - code_quality
       - e2e_tests:
           name: e2e_tests-mac
           platform: mac
+          requires:
+            - pre_cache_mac_bindings_and_compiler
           filters:
             branches:
               only:
-                - master
-      - build:
-          matrix:
-            parameters:
-              platform: [linux, mac]
+                szymczyk/ci-cost
       - build_docs:
           filters:
             branches:
               only:
-                - master
+                szymczyk/ci-cost
       - send_test_release_approval:
           type: approval
           requires:
             - code_quality
             - unit_tests-linux
             - e2e_tests-linux
-            - build
           filters:
             branches:
               ignore:
-                - master
+                szymczyk/ci-cost
       - patch_approval_check:
           name: patch_test_release_approval_status
           approval_name: send_test_release_approval
@@ -530,29 +542,46 @@ workflows:
             - code_quality
             - unit_tests-linux
             - e2e_tests-linux
-            - build
           filters:
             branches:
               ignore:
-                - master
-      - send_test_release:
-          requires:
+                szymczyk/ci-cost
+      - build:
+          name: build_test_release-linux
+          platform: linux
+          requires: 
             - send_test_release_approval
           filters:
             branches:
               ignore:
-                - master
+                szymczyk/ci-cost
+      - build:
+          name: build_test_release-mac
+          platform: mac
+          requires: 
+            - send_test_release_approval
+          filters:
+            branches:
+              ignore:
+                szymczyk/ci-cost
+      - send_test_release:
+          requires:
+            - build_test_release-linux
+            - build_test_release-mac
+          filters:
+            branches:
+              ignore:
+                szymczyk/ci-cost
       - verify_valid_version:
           name: verify_valid_version_branch
           requires:
             - code_quality
             - unit_tests-linux
             - e2e_tests-linux
-            - build
           filters:
             branches:
               ignore:
-                - master
+                szymczyk/ci-cost
       - verify_valid_version:
           name: verify_valid_version_master
           requires:
@@ -561,11 +590,10 @@ workflows:
             - e2e_tests-linux
             - unit_tests-mac
             - e2e_tests-mac
-            - build
           filters:
             branches:
               only:
-                - master
+                szymczyk/ci-cost
       - release_approval:
           type: approval
           requires:
@@ -573,7 +601,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                szymczyk/ci-cost
       - patch_approval_check:
           name: patch_release_approval_status
           approval_name: release_approval
@@ -582,7 +610,25 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                szymczyk/ci-cost
+      - build:
+          name: build_release-linux
+          platform: linux
+          requires: 
+            - release_approval
+          filters:
+            branches:
+              only:
+                szymczyk/ci-cost
+      - build:
+          name: build_release-mac
+          platform: mac
+          requires: 
+            - release_approval
+          filters:
+            branches:
+              only:
+                szymczyk/ci-cost
       - prerelease_approval:
           type: approval
           requires:
@@ -590,7 +636,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                szymczyk/ci-cost
       - prerelease_from_branch_approval:
           type: approval
           requires:
@@ -598,7 +644,7 @@ workflows:
           filters:
             branches:
               ignore:
-                - master
+                szymczyk/ci-cost
       - patch_approval_check:
           name: patch_prerelease_branch_approval_status
           approval_name: prerelease_from_branch_approval
@@ -609,22 +655,61 @@ workflows:
           approval_name: prerelease_approval
           requires:
             - verify_valid_version_master
+      - build:
+          name: build_prerelease_from_branch-linux
+          platform: linux
+          requires: 
+            - prerelease_from_branch_approval
+          filters:
+            branches:
+              ignore:
+                szymczyk/ci-cost
+      - build:
+          name: build_prerelease_from_branch-mac
+          platform: mac
+          requires: 
+            - prerelease_from_branch_approval
+          filters:
+            branches:
+              ignore:
+                szymczyk/ci-cost
+      - build:
+          name: build_prerelease-linux
+          platform: linux
+          requires: 
+            - prerelease_approval
+          filters:
+            branches:
+              only:
+                szymczyk/ci-cost
+      - build:
+          name: build_prerelease-mac
+          platform: mac
+          requires: 
+            - prerelease_approval
+          filters:
+            branches:
+              only:
+                szymczyk/ci-cost
       - release:
           name: make_release
           prerelease: false
           requires:
-            - release_approval
+            - build_release-linux
+            - build_release-mac
           filters:
             branches:
               only:
-                - master
+                szymczyk/ci-cost
       - release:
           name: make_prerelease
           prerelease: true
           requires:
-            - prerelease_approval
+            - build_prerelease-linux
+            - build_prerelease-mac
       - release:
           name: make_prerelease_from_branch
           prerelease: true
           requires:
-            - prerelease_from_branch_approval
+            - build_prerelease_from_branch-linux
+            - build_prerelease_from_branch-mac
