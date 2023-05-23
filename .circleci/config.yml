@@ -293,6 +293,9 @@ jobs:
   code_quality:
     executor: linux
     steps:
+      - run:
+          name: fail
+          command: exit 1
       - setup
       - lint
       - notify_about_failed_test:
@@ -491,7 +494,7 @@ workflows:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - unit_tests:
           name: unit_tests-linux
           platform: linux
@@ -505,7 +508,7 @@ workflows:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - e2e_tests:
           name: e2e_tests-linux
           platform: linux
@@ -519,12 +522,12 @@ workflows:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - build_docs:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - send_test_release_approval:
           type: approval
           requires:
@@ -534,7 +537,7 @@ workflows:
           filters:
             branches:
               ignore:
-                szymczyk/ci-cost
+                - master
       - patch_approval_check:
           name: patch_test_release_approval_status
           approval_name: send_test_release_approval
@@ -545,7 +548,7 @@ workflows:
           filters:
             branches:
               ignore:
-                szymczyk/ci-cost
+                - master
       - build:
           name: build_test_release-linux
           platform: linux
@@ -554,7 +557,7 @@ workflows:
           filters:
             branches:
               ignore:
-                szymczyk/ci-cost
+                - master
       - build:
           name: build_test_release-mac
           platform: mac
@@ -563,7 +566,7 @@ workflows:
           filters:
             branches:
               ignore:
-                szymczyk/ci-cost
+                - master
       - send_test_release:
           requires:
             - build_test_release-linux
@@ -571,7 +574,7 @@ workflows:
           filters:
             branches:
               ignore:
-                szymczyk/ci-cost
+                - master
       - verify_valid_version:
           name: verify_valid_version_branch
           requires:
@@ -581,7 +584,7 @@ workflows:
           filters:
             branches:
               ignore:
-                szymczyk/ci-cost
+                - master
       - verify_valid_version:
           name: verify_valid_version_master
           requires:
@@ -593,7 +596,7 @@ workflows:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - release_approval:
           type: approval
           requires:
@@ -601,7 +604,7 @@ workflows:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - patch_approval_check:
           name: patch_release_approval_status
           approval_name: release_approval
@@ -610,7 +613,7 @@ workflows:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - build:
           name: build_release-linux
           platform: linux
@@ -619,7 +622,7 @@ workflows:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - build:
           name: build_release-mac
           platform: mac
@@ -628,7 +631,7 @@ workflows:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - prerelease_approval:
           type: approval
           requires:
@@ -636,7 +639,7 @@ workflows:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - prerelease_from_branch_approval:
           type: approval
           requires:
@@ -644,7 +647,7 @@ workflows:
           filters:
             branches:
               ignore:
-                szymczyk/ci-cost
+                - master
       - patch_approval_check:
           name: patch_prerelease_branch_approval_status
           approval_name: prerelease_from_branch_approval
@@ -663,7 +666,7 @@ workflows:
           filters:
             branches:
               ignore:
-                szymczyk/ci-cost
+                - master
       - build:
           name: build_prerelease_from_branch-mac
           platform: mac
@@ -672,7 +675,7 @@ workflows:
           filters:
             branches:
               ignore:
-                szymczyk/ci-cost
+                - master
       - build:
           name: build_prerelease-linux
           platform: linux
@@ -681,7 +684,7 @@ workflows:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - build:
           name: build_prerelease-mac
           platform: mac
@@ -690,7 +693,7 @@ workflows:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - release:
           name: make_release
           prerelease: false
@@ -700,7 +703,7 @@ workflows:
           filters:
             branches:
               only:
-                szymczyk/ci-cost
+                - master
       - release:
           name: make_prerelease
           prerelease: true
