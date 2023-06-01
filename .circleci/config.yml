@@ -493,7 +493,7 @@ workflows:
 
   protostar:
     jobs:
-      # - code_quality
+      - code_quality
       - pre_cache_mac_bindings_and_compiler
       # - unit_tests:
       #     name: unit_tests-linux
