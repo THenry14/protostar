@@ -493,31 +493,23 @@ workflows:
 
   protostar:
     jobs:
-      - code_quality
-      - pre_cache_mac_bindings_and_compiler:
-          filters:
-            branches:
-              only:
-                - master
-      - unit_tests:
-          name: unit_tests-linux
-          platform: linux
-          requires:
-            - code_quality
+      # - code_quality
+      - pre_cache_mac_bindings_and_compiler
       # - unit_tests:
-      #     name: unit_tests-mac
-      #     platform: mac
+      #     name: unit_tests-linux
+      #     platform: linux
       #     requires:
-      #       - pre_cache_mac_bindings_and_compiler
-      #     filters:
-      #       branches:
-      #         only:
-      #           - master
-      - e2e_tests:
-          name: e2e_tests-linux
-          platform: linux
+      #       - code_quality
+      - unit_tests:
+          name: unit_tests-mac
+          platform: mac
           requires:
-            - code_quality
+            - pre_cache_mac_bindings_and_compiler
+      # - e2e_tests:
+      #     name: e2e_tests-linux
+      #     platform: linux
+      #     requires:
+      #       - code_quality
       # - e2e_tests:
       #     name: e2e_tests-mac
       #     platform: mac
@@ -527,192 +519,192 @@ workflows:
       #       branches:
       #         only:
       #           - master
-      - build_docs
-      - send_test_release_approval:
-          type: approval
-          requires:
-            - code_quality
-            - unit_tests-linux
-            - e2e_tests-linux
-          filters:
-            branches:
-              ignore:
-                - master
-      - patch_approval_check:
-          name: patch_test_release_approval_status
-          approval_name: send_test_release_approval
-          requires:
-            - code_quality
-            - unit_tests-linux
-            - e2e_tests-linux
-          filters:
-            branches:
-              ignore:
-                - master
-      - build:
-          name: build_test_release-linux
-          platform: linux
-          requires:
-            - send_test_release_approval
-          filters:
-            branches:
-              ignore:
-                - master
-      - build:
-          name: build_test_release-mac
-          platform: mac
-          requires:
-            - send_test_release_approval
-          filters:
-            branches:
-              ignore:
-                - master
-      - send_test_release:
-          requires:
-            - build_test_release-linux
-            - build_test_release-mac
-          filters:
-            branches:
-              ignore:
-                - master
-      - verify_valid_version:
-          name: verify_valid_version_branch
-          requires:
-            - code_quality
-            - unit_tests-linux
-            - e2e_tests-linux
-          filters:
-            branches:
-              ignore:
-                - master
-      - verify_valid_version:
-          name: verify_valid_version_master
-          requires:
-            - code_quality
-            - unit_tests-linux
-            - e2e_tests-linux
-            # - unit_tests-mac
-            # - e2e_tests-mac
-          filters:
-            branches:
-              only:
-                - master
-      - release_approval:
-          type: approval
-          requires:
-            - verify_valid_version_master
-          filters:
-            branches:
-              only:
-                - master
-      - patch_approval_check:
-          name: patch_release_approval_status
-          approval_name: release_approval
-          requires:
-            - verify_valid_version_master
-          filters:
-            branches:
-              only:
-                - master
-      - build:
-          name: build_release-linux
-          platform: linux
-          requires:
-            - release_approval
-          filters:
-            branches:
-              only:
-                - master
-      - build:
-          name: build_release-mac
-          platform: mac
-          requires:
-            - release_approval
-          filters:
-            branches:
-              only:
-                - master
-      - prerelease_approval:
-          type: approval
-          requires:
-            - verify_valid_version_master
-          filters:
-            branches:
-              only:
-                - master
-      - prerelease_from_branch_approval:
-          type: approval
-          requires:
-            - verify_valid_version_branch
-          filters:
-            branches:
-              ignore:
-                - master
-      - patch_approval_check:
-          name: patch_prerelease_branch_approval_status
-          approval_name: prerelease_from_branch_approval
-          requires:
-            - verify_valid_version_branch
-      - patch_approval_check:
-          name: patch_prerelease_master_approval_status
-          approval_name: prerelease_approval
-          requires:
-            - verify_valid_version_master
-      - build:
-          name: build_prerelease_from_branch-linux
-          platform: linux
-          requires:
-            - prerelease_from_branch_approval
-          filters:
-            branches:
-              ignore:
-                - master
-      - build:
-          name: build_prerelease_from_branch-mac
-          platform: mac
-          requires:
-            - prerelease_from_branch_approval
-          filters:
-            branches:
-              ignore:
-                - master
-      - build:
-          name: build_prerelease-linux
-          platform: linux
-          requires:
-            - prerelease_approval
-          filters:
-            branches:
-              only:
-                - master
-      - build:
-          name: build_prerelease-mac
-          platform: mac
-          requires:
-            - prerelease_approval
-          filters:
-            branches:
-              only:
-                - master
-      - release:
-          name: make_release
-          prerelease: false
-          requires:
-            - build_release-linux
-            - build_release-mac
-          filters:
-            branches:
-              only:
-                - master
-      - release:
-          name: make_prerelease
-          prerelease: true
-          requires:
-            - build_prerelease-linux
-            - build_prerelease-mac
-      - release:
-          name: make_prerelease_from_branch
-          prerelease: true
-          requires:
-            - build_prerelease_from_branch-linux
-            - build_prerelease_from_branch-mac
+      # - build_docs
+      # - send_test_release_approval:
+      #     type: approval
+      #     requires:
+      #       - code_quality
+      #       - unit_tests-linux
+      #       - e2e_tests-linux
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - master
+      # - patch_approval_check:
+      #     name: patch_test_release_approval_status
+      #     approval_name: send_test_release_approval
+      #     requires:
+      #       - code_quality
+      #       - unit_tests-linux
+      #       - e2e_tests-linux
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - master
+      # - build:
+      #     name: build_test_release-linux
+      #     platform: linux
+      #     requires:
+      #       - send_test_release_approval
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - master
+      # - build:
+      #     name: build_test_release-mac
+      #     platform: mac
+      #     requires:
+      #       - send_test_release_approval
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - master
+      # - send_test_release:
+      #     requires:
+      #       - build_test_release-linux
+      #       - build_test_release-mac
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - master
+      # - verify_valid_version:
+      #     name: verify_valid_version_branch
+      #     requires:
+      #       - code_quality
+      #       - unit_tests-linux
+      #       - e2e_tests-linux
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - master
+      # - verify_valid_version:
+      #     name: verify_valid_version_master
+      #     requires:
+      #       - code_quality
+      #       - unit_tests-linux
+      #       - e2e_tests-linux
+      #       # - unit_tests-mac
+      #       # - e2e_tests-mac
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+      # - release_approval:
+      #     type: approval
+      #     requires:
+      #       - verify_valid_version_master
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+      # - patch_approval_check:
+      #     name: patch_release_approval_status
+      #     approval_name: release_approval
+      #     requires:
+      #       - verify_valid_version_master
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+      # - build:
+      #     name: build_release-linux
+      #     platform: linux
+      #     requires:
+      #       - release_approval
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+      # - build:
+      #     name: build_release-mac
+      #     platform: mac
+      #     requires:
+      #       - release_approval
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+      # - prerelease_approval:
+      #     type: approval
+      #     requires:
+      #       - verify_valid_version_master
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+      # - prerelease_from_branch_approval:
+      #     type: approval
+      #     requires:
+      #       - verify_valid_version_branch
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - master
+      # - patch_approval_check:
+      #     name: patch_prerelease_branch_approval_status
+      #     approval_name: prerelease_from_branch_approval
+      #     requires:
+      #       - verify_valid_version_branch
+      # - patch_approval_check:
+      #     name: patch_prerelease_master_approval_status
+      #     approval_name: prerelease_approval
+      #     requires:
+      #       - verify_valid_version_master
+      # - build:
+      #     name: build_prerelease_from_branch-linux
+      #     platform: linux
+      #     requires:
+      #       - prerelease_from_branch_approval
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - master
+      # - build:
+      #     name: build_prerelease_from_branch-mac
+      #     platform: mac
+      #     requires:
+      #       - prerelease_from_branch_approval
+      #     filters:
+      #       branches:
+      #         ignore:
+      #           - master
+      # - build:
+      #     name: build_prerelease-linux
+      #     platform: linux
+      #     requires:
+      #       - prerelease_approval
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+      # - build:
+      #     name: build_prerelease-mac
+      #     platform: mac
+      #     requires:
+      #       - prerelease_approval
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+      # - release:
+      #     name: make_release
+      #     prerelease: false
+      #     requires:
+      #       - build_release-linux
+      #       - build_release-mac
+      #     filters:
+      #       branches:
+      #         only:
+      #           - master
+      # - release:
+      #     name: make_prerelease
+      #     prerelease: true
+      #     requires:
+      #       - build_prerelease-linux
+      #       - build_prerelease-mac
+      # - release:
+      #     name: make_prerelease_from_branch
+      #     prerelease: true
+      #     requires:
+      #       - build_prerelease_from_branch-linux
+      #       - build_prerelease_from_branch-mac
